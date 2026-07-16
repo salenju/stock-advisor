@@ -410,14 +410,14 @@ const totalTodayProfit = computed(() =>
             <div class="flex items-center gap-3">
               <button
                 @click="toggleExpand(h)"
-                class="flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                class="flex h-7 w-7 items-center justify-center text-slate-400 transition hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
                 :title="expanded[h.id] ? '收起明细' : '展开明细'"
               >
                 <svg
                   class="h-4 w-4 transition-transform"
                   :class="expanded[h.id] ? 'rotate-90' : ''"
-                  viewBox="0 0 20 20" fill="currentColor"
-                ><path d="M7 5l6 5-6 5V5z" /></svg>
+                  viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                ><path d="M7 5l6 5-6 5" /></svg>
               </button>
               <div>
                 <div class="flex flex-wrap items-center gap-2">

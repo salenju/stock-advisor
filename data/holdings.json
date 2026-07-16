@@ -17,8 +17,8 @@
         "buyPrice": 368,
         "buyQuantity": 100,
         "buyTime": "2026-07-25",
-        "targetProfitRate": 20,
-        "stopLossRate": 10
+        "targetProfitRate": 20.2,
+        "stopLossRate": 9.8
       },
       {
         "id": "p1b",
@@ -34,9 +34,15 @@
     "nextStrategy": "若跌至 331 附近分批补仓",
     "currentPrice": 484,
     "prevClose": 474,
-    "lastUpdated": "2026-07-16T15:27:30.307Z",
+    "lastUpdated": "2026-07-16T15:30:21.910Z",
     "triggerState": "IDLE",
-    "notifiedAt": null
+    "notifiedAt": null,
+    "cost": 38480,
+    "buyQuantity": 108,
+    "lastBuyPrice": 210,
+    "avgCost": 356.2962962962963,
+    "targetProfitRate": 20.41,
+    "stopLossRate": 9.72
   },
   {
     "id": "h2",
