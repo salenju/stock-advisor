@@ -74,12 +74,13 @@ export async function runOnce(cfg) {
 
   let changed = false;
   for (const h of active) {
-    const price = prices[h.code];
-    if (price == null) {
+    const q = prices[h.code];
+    if (!q || q.price == null) {
       console.warn(`[skip] ${h.code} 无行情`);
       continue;
     }
-    h.currentPrice = price;
+    h.currentPrice = q.price;
+    h.prevClose = q.prevClose;
     h.lastUpdated = now.toISOString();
 
     const r = evaluate(h, cfg.notify.nearThresholdPct);
@@ -91,12 +92,13 @@ export async function runOnce(cfg) {
       continue;
     }
 
-    // 冷却：NOTIFIED 且在冷却窗口内则跳过，避免刷屏
+    // 冷却：同一触发态且在冷却窗口内则跳过，避免刷屏
     const inCooldown =
       h.notifiedAt &&
+      h.triggerState === r.trigger &&
       now.getTime() - new Date(h.notifiedAt).getTime() <
         cfg.notify.cooldownSeconds * 1000;
-    if (h.triggerState === 'NOTIFIED' && inCooldown) continue;
+    if (inCooldown) continue;
 
     const summary = `成本 ${h.cost}，仓位 ${h.position}`;
     await sendCard(cfg, {
@@ -110,7 +112,7 @@ export async function runOnce(cfg) {
       summary,
     }).catch((e) => console.error('[notify]', e.message));
 
-    h.triggerState = 'NOTIFIED';
+    h.triggerState = r.trigger;
     h.notifiedAt = now.toISOString();
     changed = true;
   }

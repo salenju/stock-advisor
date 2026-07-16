@@ -29,7 +29,13 @@ export async function fetchPrices(codes) {
     const code = m[1];
     const parts = m[2].split('~');
     const price = parseFloat(parts[3]); // 第 3 段为当前价（A股/港股/美股通用）
-    if (!Number.isNaN(price)) result[code] = price;
+    const prevClose = parseFloat(parts[4]); // 第 4 段为昨收（用于计算今日涨跌）
+    if (!Number.isNaN(price)) {
+      result[code] = {
+        price,
+        prevClose: Number.isNaN(prevClose) ? null : prevClose,
+      };
+    }
   }
   return result;
 }
