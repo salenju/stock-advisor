@@ -9,6 +9,7 @@ const error = ref('');
 // ---------- 主题切换 ----------
 const isDark = ref(true);
 function applyTheme() {
+  document.documentElement.dataset.theme = isDark.value ? 'stockdark' : 'stocklight';
   document.documentElement.classList.toggle('dark', isDark.value);
 }
 function initTheme() {
@@ -98,55 +99,46 @@ const fmtDate = (v) => (v ? String(v).slice(0, 10) : '—');
 
 // 收益红绿：为正用红色（涨），为负用绿色（跌）—— 与 A股习惯一致
 const profitCls = (v) =>
-  v == null ? 'text-slate-400 dark:text-slate-500'
-    : v >= 0 ? 'text-rose-600 dark:text-rose-400'
-    : 'text-emerald-600 dark:text-emerald-400';
+  v == null ? 'text-base-content/40'
+    : v >= 0 ? 'text-error'
+    : 'text-success';
 
 function triggerBadge(state) {
   if (!state || state === 'IDLE')
-    return { text: '待观察', cls: 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300' };
+    return { text: '待观察', cls: 'badge badge-info' };
   if (state.includes('BUY'))
-    return {
-      text: '买点',
-      cls: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-600/30 dark:bg-emerald-600/20 dark:text-emerald-400 dark:ring-emerald-600/40',
-    };
+    return { text: '买点', cls: 'badge badge-success' };
   if (state.includes('SELL'))
-    return {
-      text: '卖点',
-      cls: 'bg-rose-100 text-rose-700 ring-1 ring-rose-600/30 dark:bg-rose-600/20 dark:text-rose-400 dark:ring-rose-600/40',
-    };
+    return { text: '卖点', cls: 'badge badge-error' };
   if (state.includes('NEAR'))
-    return {
-      text: '临近阈值',
-      cls: 'bg-amber-100 text-amber-700 ring-1 ring-amber-500/30 dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/40',
-    };
-  return { text: state, cls: 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300' };
+    return { text: '临近阈值', cls: 'badge badge-warning' };
+  return { text: state, cls: 'badge badge-info' };
 }
 
 const regionLabel = { hk: '港股', us: '美股', sh: 'A股', sz: 'A股' };
 
-// 地区小标签（不同市场用不同色）
+// 地区小标签：仅使用规范色（warning/info/primary/success），不出现派生色
 const regionBadge = (region) => {
   const map = {
-    hk: { text: '港股', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-600/20 dark:text-amber-400' },
-    us: { text: '美股', cls: 'bg-violet-100 text-violet-700 dark:bg-violet-600/20 dark:text-violet-400' },
-    sh: { text: 'A股', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-600/20 dark:text-sky-400' },
-    sz: { text: 'A股', cls: 'bg-teal-100 text-teal-700 dark:bg-teal-600/20 dark:text-teal-400' },
+    hk: { text: '港股', cls: 'badge badge-warning' },
+    us: { text: '美股', cls: 'badge badge-info' },
+    sh: { text: 'A股', cls: 'badge badge-primary' },
+    sz: { text: 'A股', cls: 'badge badge-success' },
   };
-  return map[region] || { text: regionLabel[region] || region, cls: 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300' };
+  return map[region] || { text: regionLabel[region] || region, cls: 'badge badge-info' };
 };
 
 // 投资策略枚举（与 server.js 的 INVEST_STRATEGIES 保持一致；新增/修改策略在此增删）
 const INVEST_STRATEGIES = [
-  { value: 'long', label: '长期持有', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-600/20 dark:text-emerald-400' },
-  { value: 'mid', label: '中线持有', cls: 'bg-sky-100 text-sky-700 dark:bg-sky-600/20 dark:text-sky-400' },
-  { value: 'short', label: '短线持有', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-600/20 dark:text-amber-400' },
-  { value: 'highrisk', label: '高风险博弈', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-600/20 dark:text-rose-400' },
+  { value: 'long', label: '长期持有', cls: 'badge badge-success' },
+  { value: 'mid', label: '中线持有', cls: 'badge badge-info' },
+  { value: 'short', label: '短线持有', cls: 'badge badge-warning' },
+  { value: 'highrisk', label: '高风险博弈', cls: 'badge badge-error' },
 ];
 const strategyBadge = (s) =>
   INVEST_STRATEGIES.find((x) => x.value === s) || {
     text: regionLabel[s] || s || '未设置',
-    cls: 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+    cls: 'badge badge-info',
   };
 
 // ---------- 折叠明细 ----------
@@ -315,22 +307,23 @@ const totalTodayProfit = computed(() =>
 </script>
 
 <template>
-  <div class="min-h-full bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-200">
+  <div class="min-h-full bg-base-200 text-base-content">
     <!-- 顶部栏 -->
-    <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+    <header class="sticky top-0 z-10 border-b border-base-300 bg-base-100/80 backdrop-blur">
       <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         <div>
-          <h1 class="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">📈 股票秘书</h1>
-          <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-500">
+          <h1 class="text-xl font-semibold tracking-tight">📈 股票秘书</h1>
+          <p class="mt-0.5 text-xs opacity-60">
             持仓 · 实时行情 · 飞书阈值提醒
             <span v-if="lastUpdated" class="ml-2">· 更新于 {{ lastUpdated }}</span>
-            <span v-if="loading" class="ml-2 text-sky-500 dark:text-sky-400">刷新中…</span>
-            <span class="ml-2 inline-flex items-center gap-1 text-slate-500 dark:text-slate-600">
+            <span v-if="loading" class="ml-2 text-info">刷新中…</span>
+            <span class="ml-2 inline-flex items-center gap-1 opacity-60">
               · {{ countdown }} 秒后刷新
               <svg class="h-4 w-4 -rotate-90" viewBox="0 0 16 16">
-                <circle cx="8" cy="8" r="7" fill="none" stroke="rgb(203 213 225)" stroke-width="2" class="dark:stroke-slate-700" />
+                <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="2" class="text-base-content opacity-20" />
                 <circle
-                  cx="8" cy="8" r="7" fill="none" stroke="rgb(14 165 233)" stroke-width="2"
+                  cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="2"
+                  class="text-primary"
                   stroke-linecap="round"
                   :stroke-dasharray="RING_C"
                   :stroke-dashoffset="ringOffset"
@@ -340,30 +333,24 @@ const totalTodayProfit = computed(() =>
           </p>
         </div>
         <div class="flex items-center gap-2">
-          <span v-if="error" class="text-xs text-rose-600 dark:text-rose-400">{{ error }}</span>
+          <span v-if="error" class="text-xs text-error">{{ error }}</span>
           <button
             @click="toggleTheme"
             :title="isDark ? '切换到浅色' : '切换到深色'"
-            class="rounded-full border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            class="btn btn-ghost btn-circle btn-sm"
           >{{ isDark ? '☀️' : '🌙' }}</button>
-          <button
-            @click="refreshNow"
-            class="rounded-full border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-          >刷新</button>
+          <button @click="refreshNow" class="btn btn-ghost btn-sm">刷新</button>
           <button
             @click="testFeishu"
             :disabled="testing"
             :title="testing ? '发送中…' : '向飞书机器人发送一条测试消息'"
-            class="rounded-full border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            class="btn btn-ghost btn-sm"
           >{{ testing ? '发送中…' : '测试飞书' }}</button>
-          <button
-            @click="showAdd = true"
-            class="rounded-full bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-500"
-          >+ 添加持仓</button>
+          <button @click="showAdd = true" class="btn btn-primary btn-sm">+ 添加持仓</button>
           <span
             v-if="testMsg"
             class="text-xs"
-            :class="testMsg.includes('✓') ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'"
+            :class="testMsg.includes('✓') ? 'text-success' : 'text-error'"
           >{{ testMsg }}</span>
         </div>
       </div>
@@ -372,26 +359,26 @@ const totalTodayProfit = computed(() =>
     <main class="mx-auto max-w-7xl px-6 py-6">
       <!-- 概览卡片 -->
       <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60">
-          <div class="text-xs text-slate-500">持仓数</div>
-          <div class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{{ holdings.length }}</div>
+        <div class="rounded-xl border border-base-300 bg-base-100 p-4">
+          <div class="text-xs opacity-60">持仓数</div>
+          <div class="mt-1 text-2xl font-semibold">{{ holdings.length }}</div>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60">
-          <div class="text-xs text-slate-500">总成本</div>
-          <div class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{{ fmtMoney(totalCost) }}</div>
+        <div class="rounded-xl border border-base-300 bg-base-100 p-4">
+          <div class="text-xs opacity-60">总成本</div>
+          <div class="mt-1 text-2xl font-semibold">{{ fmtMoney(totalCost) }}</div>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60">
-          <div class="text-xs text-slate-500">总市值</div>
-          <div class="mt-1 text-2xl font-semibold text-slate-900 dark:text-white">{{ fmtMoney(totalMarket) }}</div>
+        <div class="rounded-xl border border-base-300 bg-base-100 p-4">
+          <div class="text-xs opacity-60">总市值</div>
+          <div class="mt-1 text-2xl font-semibold">{{ fmtMoney(totalMarket) }}</div>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60">
-          <div class="text-xs text-slate-500">今日收益</div>
+        <div class="rounded-xl border border-base-300 bg-base-100 p-4">
+          <div class="text-xs opacity-60">今日收益</div>
           <div class="mt-1 text-2xl font-semibold tabular-nums" :class="profitCls(totalTodayProfit)">
             {{ fmtMoney(totalTodayProfit) }}
           </div>
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60">
-          <div class="text-xs text-slate-500">持仓收益</div>
+        <div class="rounded-xl border border-base-300 bg-base-100 p-4">
+          <div class="text-xs opacity-60">持仓收益</div>
           <div class="mt-1 text-2xl font-semibold tabular-nums" :class="profitCls(totalHoldingProfit)">
             {{ fmtMoney(totalHoldingProfit) }}
           </div>
@@ -403,14 +390,14 @@ const totalTodayProfit = computed(() =>
         <div
           v-for="h in holdings"
           :key="h.id"
-          class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/60"
+          class="overflow-hidden rounded-xl border border-base-300 bg-base-100"
         >
           <!-- 卡片头：汇总信息 -->
           <div class="flex flex-wrap items-center justify-between gap-3 p-4">
             <div class="flex items-center gap-3">
               <button
                 @click="toggleExpand(h)"
-                class="flex h-7 w-7 items-center justify-center text-slate-400 transition hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200"
+                class="flex h-7 w-7 items-center justify-center opacity-60 transition hover:opacity-100"
                 :title="expanded[h.id] ? '收起明细' : '展开明细'"
               >
                 <svg
@@ -421,169 +408,139 @@ const totalTodayProfit = computed(() =>
               </button>
               <div>
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="font-semibold text-slate-900 dark:text-white">{{ h.name }}</span>
-                  <span
-                    class="rounded px-1.5 py-0.5 text-[11px]"
-                    :class="h.status === '持有' ? 'bg-sky-100 text-sky-700 dark:bg-sky-600/20 dark:text-sky-400' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'"
-                  >{{ h.status }}</span>
-                  <span class="rounded px-1.5 py-0.5 text-[11px]" :class="regionBadge(h.region).cls">
-                    {{ regionBadge(h.region).text }}
-                  </span>
-                  <span class="rounded px-1.5 py-0.5 text-[11px] bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                    {{ h.type }}
-                  </span>
-                  <span class="rounded px-1.5 py-0.5 text-[11px]" :class="strategyBadge(h.strategy).cls">
-                    {{ strategyBadge(h.strategy).text }}
-                  </span>
-                  <span class="rounded px-1.5 py-0.5 text-[11px]" :class="triggerBadge(h.triggerState).cls">
-                    {{ triggerBadge(h.triggerState).text }}
-                  </span>
+                  <span class="font-semibold">{{ h.name }}</span>
+                  <span class="badge badge-sm" :class="h.status === '持有' ? 'badge-success' : 'badge-error'">{{ h.status }}</span>
+                  <span class="badge badge-sm" :class="regionBadge(h.region).cls">{{ regionBadge(h.region).text }}</span>
+                  <span class="badge badge-sm badge-primary">{{ h.type }}</span>
+                  <span class="badge badge-sm" :class="strategyBadge(h.strategy).cls">{{ strategyBadge(h.strategy).text }}</span>
+                  <span class="badge badge-sm" :class="triggerBadge(h.triggerState).cls">{{ triggerBadge(h.triggerState).text }}</span>
                 </div>
-                <div class="mt-1 font-mono text-xs text-slate-500 dark:text-slate-500">{{ h.code }}</div>
+                <div class="mt-1 font-mono text-xs opacity-60">{{ h.code }}</div>
               </div>
             </div>
             <div class="flex items-center gap-2">
-              <button
-                @click="openTxn(h, 'BUY')"
-                class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-600/20 dark:text-emerald-400 dark:hover:bg-emerald-600/30"
-              >买入</button>
-              <button
-                @click="openTxn(h, 'SELL')"
-                class="rounded-full bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-200 dark:bg-rose-600/20 dark:text-rose-400 dark:hover:bg-rose-600/30"
-              >卖出</button>
-              <button
-                @click="openAddBuy(h)"
-                class="rounded-full bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-200 dark:bg-sky-600/20 dark:text-sky-400 dark:hover:bg-sky-600/30"
-              >+ 买入记录</button>
+              <button @click="openTxn(h, 'BUY')" class="btn btn-success btn-xs">买入</button>
+              <button @click="openTxn(h, 'SELL')" class="btn btn-error btn-xs">卖出</button>
+              <button @click="openAddBuy(h)" class="btn btn-primary btn-xs">+ 买入记录</button>
             </div>
           </div>
 
           <!-- 汇总指标 -->
-          <div class="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-slate-100 px-4 py-4 sm:grid-cols-3 lg:grid-cols-6 dark:border-slate-800">
+          <div class="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-base-300 px-4 py-4 sm:grid-cols-3 lg:grid-cols-6">
             <div>
-              <div class="text-xs text-slate-500">市值 / 数量</div>
-              <div class="mt-0.5 tabular-nums text-slate-900 dark:text-white">
-                {{ fmtMoney(h.marketValue) }} <span class="text-slate-400">/</span> {{ fmtQty(h.buyQuantity) }}
-              </div>
+              <div class="text-xs opacity-60">市值 / 数量</div>
+              <div class="mt-0.5 tabular-nums">{{ fmtMoney(h.marketValue) }} <span class="opacity-40">/</span> {{ fmtQty(h.buyQuantity) }}</div>
             </div>
             <div>
-              <div class="text-xs text-slate-500">成本 / 现价</div>
-              <div class="mt-0.5 tabular-nums text-slate-900 dark:text-white">
-                {{ fmtPrice(h.avgCost) }} <span class="text-slate-400">/</span> {{ fmtPrice(h.currentPrice) }}
-              </div>
+              <div class="text-xs opacity-60">成本 / 现价</div>
+              <div class="mt-0.5 tabular-nums">{{ fmtPrice(h.avgCost) }} <span class="opacity-40">/</span> {{ fmtPrice(h.currentPrice) }}</div>
             </div>
             <div>
-              <div class="text-xs text-slate-500">今日收益 / 收益率</div>
+              <div class="text-xs opacity-60">今日收益 / 收益率</div>
               <div class="mt-0.5 tabular-nums font-medium" :class="profitCls(h.todayProfit)">
-                {{ fmtMoney(h.todayProfit) }} <span class="text-slate-400">/</span> {{ fmtPct(h.todayReturnRate) }}
+                {{ fmtMoney(h.todayProfit) }} <span class="opacity-40">/</span> {{ fmtPct(h.todayReturnRate) }}
               </div>
             </div>
             <div>
-              <div class="text-xs text-slate-500">持仓收益 / 收益率</div>
+              <div class="text-xs opacity-60">持仓收益 / 收益率</div>
               <div class="mt-0.5 tabular-nums font-medium" :class="profitCls(h.holdingProfit)">
-                {{ fmtMoney(h.holdingProfit) }} <span class="text-slate-400">/</span> {{ fmtPct(h.holdingReturnRate) }}
+                {{ fmtMoney(h.holdingProfit) }} <span class="opacity-40">/</span> {{ fmtPct(h.holdingReturnRate) }}
               </div>
             </div>
             <div>
-              <div class="text-xs text-slate-500">止盈% / 止损%</div>
+              <div class="text-xs opacity-60">止盈% / 止损%</div>
               <div class="mt-0.5 tabular-nums font-medium">
                 <span :class="profitCls(h.targetProfitRate)">+{{ fmt(h.targetProfitRate) }}%</span>
-                <span class="text-slate-400"> / </span>
+                <span class="opacity-40"> / </span>
                 <span :class="profitCls(-(Number(h.stopLossRate) || 0))">-{{ fmt(h.stopLossRate) }}%</span>
               </div>
             </div>
             <div>
-              <div class="text-xs text-slate-500">补仓% / 补仓价</div>
-              <div class="mt-0.5 tabular-nums text-slate-700 dark:text-slate-300">
-               <span :class="profitCls(1)">-{{ fmt(h.refillDropRate) }}%</span>  
-               <span class="text-slate-400"> &nbsp;/&nbsp;</span> 
+              <div class="text-xs opacity-60">补仓% / 补仓价</div>
+              <div class="mt-0.5 tabular-nums">
+               <span :class="profitCls(1)">-{{ fmt(h.refillDropRate) }}%</span>
+               <span class="opacity-40"> &nbsp;/&nbsp; </span>
                {{ fmtPrice(h.refillPrice) }}
               </div>
             </div>
           </div>
 
           <!-- 买入明细（可折叠） -->
-          <div v-if="expanded[h.id]" class="border-t border-slate-100 dark:border-slate-800">
+          <div v-if="expanded[h.id]" class="border-t border-base-300">
             <div class="overflow-x-auto">
-              <table class="w-full min-w-[920px] border-collapse text-sm">
-                <thead class="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
-                  <tr>
-                    <th class="px-4 py-2">买入日期</th>
-                    <th class="px-4 py-2 text-right">买入价</th>
-                    <th class="px-4 py-2 text-right">数量</th>
-                    <th class="px-4 py-2 text-right">成本</th>
-                    <th class="px-4 py-2 text-right">现价市值</th>
-                    <th class="px-4 py-2 text-right">收益 / 收益率</th>
-                    <th class="px-4 py-2 text-center">止盈 %</th>
-                    <th class="px-4 py-2 text-center">止损 %</th>
-                    <th class="px-4 py-2 text-center">操作</th>
+              <table class="table w-full text-sm">
+                <thead>
+                  <tr class="text-xs uppercase opacity-60">
+                    <th>买入日期</th>
+                    <th class="text-right">买入价</th>
+                    <th class="text-right">数量</th>
+                    <th class="text-right">成本</th>
+                    <th class="text-right">现价市值</th>
+                    <th class="text-right">收益 / 收益率</th>
+                    <th class="text-center">止盈 %</th>
+                    <th class="text-center">止损 %</th>
+                    <th class="text-center">操作</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                  <tr v-for="p in h.purchases" :key="p.id" class="align-middle">
-                    <td class="px-4 py-2 text-slate-600 dark:text-slate-400">{{ fmtDate(p.buyTime) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ fmtPrice(p.buyPrice) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ fmtQty(p.buyQuantity) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ fmtMoney(p.cost) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">{{ fmtMoney(p.marketValue) }}</td>
-                    <td class="px-4 py-2 text-right tabular-nums font-medium" :class="profitCls(p.profit)">
-                      {{ fmtMoney(p.profit) }} <span class="text-slate-400">/</span> {{ fmtPct(p.returnRate) }}
+                <tbody>
+                  <tr v-for="p in h.purchases" :key="p.id">
+                    <td>{{ fmtDate(p.buyTime) }}</td>
+                    <td class="text-right tabular-nums">{{ fmtPrice(p.buyPrice) }}</td>
+                    <td class="text-right tabular-nums">{{ fmtQty(p.buyQuantity) }}</td>
+                    <td class="text-right tabular-nums">{{ fmtMoney(p.cost) }}</td>
+                    <td class="text-right tabular-nums">{{ fmtMoney(p.marketValue) }}</td>
+                    <td class="text-right tabular-nums font-medium" :class="profitCls(p.profit)">
+                      {{ fmtMoney(p.profit) }} <span class="opacity-40">/</span> {{ fmtPct(p.returnRate) }}
                     </td>
-                    <td class="px-4 py-2 text-center text-xs font-medium" :class="profitCls(p.targetProfitRate)">
+                    <td class="text-center text-xs font-medium" :class="profitCls(p.targetProfitRate)">
                       +{{ fmt(p.targetProfitRate) }}%
                     </td>
-                    <td class="px-4 py-2 text-center text-xs font-medium" :class="profitCls(-(Number(p.stopLossRate) || 0))">
+                    <td class="text-center text-xs font-medium" :class="profitCls(-(Number(p.stopLossRate) || 0))">
                       -{{ fmt(p.stopLossRate) }}%
                     </td>
-                    <td class="px-4 py-2 text-center">
+                    <td class="text-center">
                       <div class="flex justify-center gap-1">
-                        <button
-                          @click="openEditBuy(h, p)"
-                          class="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 hover:bg-sky-200 dark:bg-sky-600/20 dark:text-sky-400 dark:hover:bg-sky-600/30"
-                        >修改</button>
-                        <button
-                          @click="deletePurchase(h, p)"
-                          class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-200 dark:bg-slate-700/40 dark:text-slate-400 dark:hover:bg-slate-700"
-                        >删除</button>
+                        <button @click="openEditBuy(h, p)" class="btn btn-info btn-xs">修改</button>
+                        <button @click="deletePurchase(h, p)" class="btn btn-error btn-xs">删除</button>
                       </div>
                     </td>
                   </tr>
                   <tr v-if="!h.purchases || !h.purchases.length">
-                    <td colspan="9" class="px-4 py-6 text-center text-slate-400 dark:text-slate-500">暂无买入记录</td>
+                    <td colspan="9" class="text-center opacity-40">暂无买入记录</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <div v-if="h.nextStrategy" class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
+            <div v-if="h.nextStrategy" class="px-4 py-3 text-xs opacity-60">
               下阶段策略：{{ h.nextStrategy }}
             </div>
           </div>
         </div>
 
-        <div v-if="!holdings.length" class="rounded-xl border border-dashed border-slate-300 p-10 text-center text-slate-400 dark:border-slate-700 dark:text-slate-500">
+        <div v-if="!holdings.length" class="rounded-xl border border-dashed border-base-300 p-10 text-center opacity-40">
           暂无持仓，点击右上角「添加持仓」开始记录
         </div>
       </div>
 
-      <p class="mt-4 text-xs text-slate-400 dark:text-slate-600">每 {{ REFRESH_MS / 1000 }} 秒自动刷新（顶部倒计时）持仓与实时行情，点「刷新」可立即更新。收益为正显示红色、为负显示绿色（A股习惯）。</p>
+      <p class="mt-4 text-xs opacity-50">每 {{ REFRESH_MS / 1000 }} 秒自动刷新（顶部倒计时）持仓与实时行情，点「刷新」可立即更新。收益为正显示红色、为负显示绿色（A股习惯）。</p>
     </main>
 
     <!-- 添加持仓弹窗 -->
-    <div v-if="showAdd" class="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" @click.self="showAdd = false">
-      <div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-        <h2 class="mb-4 text-lg font-semibold text-slate-900 dark:text-white">添加持仓</h2>
+    <dialog class="modal" :class="{ 'modal-open': showAdd }">
+      <div class="modal-box">
+        <h2 class="mb-4 text-lg font-semibold">添加持仓</h2>
         <div class="grid grid-cols-2 gap-3">
           <label class="col-span-2 text-sm">
-            <span class="mb-1 block text-slate-500">名称</span>
-            <input v-model="form.name" class="input" placeholder="如 腾讯控股" />
+            <span class="mb-1 block opacity-60">名称</span>
+            <input v-model="form.name" class="input input-bordered w-full" placeholder="如 腾讯控股" />
           </label>
           <label class="col-span-2 text-sm">
-            <span class="mb-1 block text-slate-500">代码</span>
-            <input v-model="form.code" class="input" placeholder="如 00700" />
+            <span class="mb-1 block opacity-60">代码</span>
+            <input v-model="form.code" class="input input-bordered w-full" placeholder="如 00700" />
           </label>
           <label class="text-sm">
-            <span class="mb-1 block text-slate-500">地区</span>
-            <select v-model="form.region" class="input">
+            <span class="mb-1 block opacity-60">地区</span>
+            <select v-model="form.region" class="select select-bordered w-full">
               <option value="hk">港股</option>
               <option value="us">美股</option>
               <option value="sh">A股(沪)</option>
@@ -591,8 +548,8 @@ const totalTodayProfit = computed(() =>
             </select>
           </label>
           <label class="text-sm">
-            <span class="mb-1 block text-slate-500">类型</span>
-            <select v-model="form.type" class="input">
+            <span class="mb-1 block opacity-60">类型</span>
+            <select v-model="form.type" class="select select-bordered w-full">
               <option>股票</option>
               <option>股票型基金</option>
               <option>债券型基金</option>
@@ -601,146 +558,127 @@ const totalTodayProfit = computed(() =>
             </select>
           </label>
           <label class="col-span-2 text-sm">
-            <span class="mb-1 block text-slate-500">投资策略</span>
-            <select v-model="form.strategy" class="input">
+            <span class="mb-1 block opacity-60">投资策略</span>
+            <select v-model="form.strategy" class="select select-bordered w-full">
               <option v-for="s in INVEST_STRATEGIES" :key="s.value" :value="s.value">{{ s.label }}</option>
             </select>
           </label>
           <label class="text-sm">
-            <span class="mb-1 block text-slate-500">买入价</span>
-            <input v-model="form.buyPrice" type="number" step="0.01" class="input" />
+            <span class="mb-1 block opacity-60">买入价</span>
+            <input v-model="form.buyPrice" type="number" step="0.01" class="input input-bordered w-full" />
           </label>
           <label class="text-sm">
-            <span class="mb-1 block text-slate-500">买入数量</span>
-            <input v-model="form.buyQuantity" type="number" step="1" class="input" />
+            <span class="mb-1 block opacity-60">买入数量</span>
+            <input v-model="form.buyQuantity" type="number" step="1" class="input input-bordered w-full" />
           </label>
           <label class="text-sm">
-            <span class="mb-1 block text-slate-500">买入日期</span>
-            <input v-model="form.buyTime" type="date" class="input" />
+            <span class="mb-1 block opacity-60">买入日期</span>
+            <input v-model="form.buyTime" type="date" class="input input-bordered w-full" />
           </label>
           <label class="text-sm">
-            <span class="mb-1 block text-slate-500">止盈收益率 %</span>
-            <input v-model="form.targetProfitRate" type="number" step="0.1" class="input" />
+            <span class="mb-1 block opacity-60">止盈收益率 %</span>
+            <input v-model="form.targetProfitRate" type="number" step="0.1" class="input input-bordered w-full" />
           </label>
           <label class="text-sm">
-            <span class="mb-1 block text-slate-500">止损收益率 %</span>
-            <input v-model="form.stopLossRate" type="number" step="0.1" class="input" />
+            <span class="mb-1 block opacity-60">止损收益率 %</span>
+            <input v-model="form.stopLossRate" type="number" step="0.1" class="input input-bordered w-full" />
           </label>
           <label class="text-sm">
-            <span class="mb-1 block text-slate-500">补仓降幅 %</span>
-            <input v-model="form.refillDropRate" type="number" step="0.1" class="input" />
+            <span class="mb-1 block opacity-60">补仓降幅 %</span>
+            <input v-model="form.refillDropRate" type="number" step="0.1" class="input input-bordered w-full" />
           </label>
           <label class="text-sm">
-            <span class="mb-1 block text-slate-500">补仓价格</span>
-            <input v-model="form.refillPrice" type="number" step="0.01" class="input" />
+            <span class="mb-1 block opacity-60">补仓价格</span>
+            <input v-model="form.refillPrice" type="number" step="0.01" class="input input-bordered w-full" />
           </label>
           <label class="text-sm">
-            <span class="mb-1 block text-slate-500">仓位(参考)</span>
-            <input v-model="form.position" type="number" step="1" class="input" />
+            <span class="mb-1 block opacity-60">仓位(参考)</span>
+            <input v-model="form.position" type="number" step="1" class="input input-bordered w-full" />
           </label>
           <label class="col-span-2 text-sm">
-            <span class="mb-1 block text-slate-500">下阶段策略</span>
-            <input v-model="form.nextStrategy" class="input" />
+            <span class="mb-1 block opacity-60">下阶段策略</span>
+            <input v-model="form.nextStrategy" class="input input-bordered w-full" />
           </label>
         </div>
-        <p v-if="formError" class="mt-3 text-sm text-rose-600 dark:text-rose-400">{{ formError }}</p>
-        <div class="mt-5 flex justify-end gap-2">
-          <button @click="showAdd = false" class="rounded-full border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">取消</button>
-          <button @click="submitAdd" class="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500">保存</button>
+        <p v-if="formError" class="mt-3 text-sm text-error">{{ formError }}</p>
+        <div class="modal-action">
+          <button @click="showAdd = false" class="btn">取消</button>
+          <button @click="submitAdd" class="btn btn-primary">保存</button>
         </div>
       </div>
-    </div>
+      <form class="modal-backdrop" @click="showAdd = false"></form>
+    </dialog>
 
     <!-- 买卖交易弹窗 -->
-    <div v-if="showTxn" class="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" @click.self="showTxn = false">
-      <div class="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-        <h2 class="mb-1 text-lg font-semibold text-slate-900 dark:text-white">
+    <dialog class="modal" :class="{ 'modal-open': showTxn }">
+      <div class="modal-box">
+        <h2 class="mb-1 text-lg font-semibold">
           {{ txn.type === 'BUY' ? '买入' : '卖出' }} · {{ txn.name }}
         </h2>
-        <p class="mb-4 text-xs text-slate-500">对已有持仓追加交易，系统自动重算成本/数量/最近买入价/状态</p>
+        <p class="mb-4 text-xs opacity-60">对已有持仓追加交易，系统自动重算成本/数量/最近买入价/状态</p>
         <div class="space-y-3">
           <label class="block text-sm">
-            <span class="mb-1 block text-slate-500">价格</span>
-            <input v-model="txn.price" type="number" step="0.01" class="input" />
+            <span class="mb-1 block opacity-60">价格</span>
+            <input v-model="txn.price" type="number" step="0.01" class="input input-bordered w-full" />
           </label>
           <label class="block text-sm">
-            <span class="mb-1 block text-slate-500">数量</span>
-            <input v-model="txn.quantity" type="number" step="1" class="input" />
+            <span class="mb-1 block opacity-60">数量</span>
+            <input v-model="txn.quantity" type="number" step="1" class="input input-bordered w-full" />
           </label>
           <label class="block text-sm">
-            <span class="mb-1 block text-slate-500">日期（可选）</span>
-            <input v-model="txn.date" type="date" class="input" />
+            <span class="mb-1 block opacity-60">日期（可选）</span>
+            <input v-model="txn.date" type="date" class="input input-bordered w-full" />
           </label>
         </div>
-        <p v-if="txnError" class="mt-3 text-sm text-rose-600 dark:text-rose-400">{{ txnError }}</p>
-        <div class="mt-5 flex justify-end gap-2">
-          <button @click="showTxn = false" class="rounded-full border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">取消</button>
+        <p v-if="txnError" class="mt-3 text-sm text-error">{{ txnError }}</p>
+        <div class="modal-action">
+          <button @click="showTxn = false" class="btn">取消</button>
           <button
             @click="submitTxn"
-            class="rounded-full px-4 py-2 text-sm font-medium text-white"
-            :class="txn.type === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-rose-600 hover:bg-rose-500'"
+            class="btn"
+            :class="txn.type === 'BUY' ? 'btn-success' : 'btn-error'"
           >确认{{ txn.type === 'BUY' ? '买入' : '卖出' }}</button>
         </div>
       </div>
-    </div>
+      <form class="modal-backdrop" @click="showTxn = false"></form>
+    </dialog>
 
     <!-- 买入记录 新增/修改 弹窗 -->
-    <div v-if="showBuy" class="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" @click.self="showBuy = false">
-      <div class="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-        <h2 class="mb-1 text-lg font-semibold text-slate-900 dark:text-white">
+    <dialog class="modal" :class="{ 'modal-open': showBuy }">
+      <div class="modal-box">
+        <h2 class="mb-1 text-lg font-semibold">
           {{ buyForm.pid ? '修改买入记录' : '添加买入记录' }} · {{ buyForm.name }}
         </h2>
-        <p class="mb-4 text-xs text-slate-500">同一股票可记录多次买入，各自设置不同的止盈/止损比例</p>
+        <p class="mb-4 text-xs opacity-60">同一股票可记录多次买入，各自设置不同的止盈/止损比例</p>
         <div class="space-y-3">
           <label class="block text-sm">
-            <span class="mb-1 block text-slate-500">买入价</span>
-            <input v-model="buyForm.buyPrice" type="number" step="0.01" class="input" />
+            <span class="mb-1 block opacity-60">买入价</span>
+            <input v-model="buyForm.buyPrice" type="number" step="0.01" class="input input-bordered w-full" />
           </label>
           <label class="block text-sm">
-            <span class="mb-1 block text-slate-500">买入数量</span>
-            <input v-model="buyForm.buyQuantity" type="number" step="1" class="input" />
+            <span class="mb-1 block opacity-60">买入数量</span>
+            <input v-model="buyForm.buyQuantity" type="number" step="1" class="input input-bordered w-full" />
           </label>
           <label class="block text-sm">
-            <span class="mb-1 block text-slate-500">买入日期</span>
-            <input v-model="buyForm.buyTime" type="date" class="input" />
+            <span class="mb-1 block opacity-60">买入日期</span>
+            <input v-model="buyForm.buyTime" type="date" class="input input-bordered w-full" />
           </label>
           <label class="block text-sm">
-            <span class="mb-1 block text-slate-500">止盈收益率 %</span>
-            <input v-model="buyForm.targetProfitRate" type="number" step="0.1" class="input" />
+            <span class="mb-1 block opacity-60">止盈收益率 %</span>
+            <input v-model="buyForm.targetProfitRate" type="number" step="0.1" class="input input-bordered w-full" />
           </label>
           <label class="block text-sm">
-            <span class="mb-1 block text-slate-500">止损收益率 %</span>
-            <input v-model="buyForm.stopLossRate" type="number" step="0.1" class="input" />
+            <span class="mb-1 block opacity-60">止损收益率 %</span>
+            <input v-model="buyForm.stopLossRate" type="number" step="0.1" class="input input-bordered w-full" />
           </label>
         </div>
-        <p v-if="buyError" class="mt-3 text-sm text-rose-600 dark:text-rose-400">{{ buyError }}</p>
-        <div class="mt-5 flex justify-end gap-2">
-          <button @click="showBuy = false" class="rounded-full border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">取消</button>
-          <button @click="submitBuy" class="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500">保存</button>
+        <p v-if="buyError" class="mt-3 text-sm text-error">{{ buyError }}</p>
+        <div class="modal-action">
+          <button @click="showBuy = false" class="btn">取消</button>
+          <button @click="submitBuy" class="btn btn-primary">保存</button>
         </div>
       </div>
-    </div>
+      <form class="modal-backdrop" @click="showBuy = false"></form>
+    </dialog>
   </div>
 </template>
-
-<style scoped>
-.input {
-  width: 100%;
-  border-radius: 0.5rem;
-  border: 1px solid rgb(203 213 225);
-  background-color: #fff;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  color: rgb(15 23 42);
-  outline: none;
-}
-.input:focus {
-  border-color: rgb(14 165 233);
-  box-shadow: 0 0 0 2px rgb(14 165 233 / 0.25);
-}
-.dark .input {
-  border-color: rgb(51 65 85);
-  background-color: rgb(15 23 42);
-  color: rgb(226 232 240);
-}
-</style>

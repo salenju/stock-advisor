@@ -8,15 +8,26 @@ body,
   height: 100%;
 }
 
-/* 细滚动条，贴合暗色风格 */
+/* 细滚动条，贴合主题（随主题色自适应） */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: rgb(148 163 184 / 0.5);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* 按钮文字统一白色（与品牌色按钮保持一致） */
+.btn {
+  color: #fff;
+}
+
+/* 中性/ghost 按钮在浅色背景下白字不可见，补一层淡淡的暗色底以承载白字 */
+.btn-ghost,
+.btn:not(.btn-primary):not(.btn-success):not(.btn-error):not(.btn-info):not(.btn-warning) {
+  background-color: rgb(23 23 23 / 0.08);
 }
