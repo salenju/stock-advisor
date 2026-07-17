@@ -67,10 +67,10 @@ async function submitTxn() {
       </div>
       <p v-if="txnError" class="mt-3 text-sm text-error">{{ txnError }}</p>
       <div class="modal-action">
-        <button @click="emit('close')" class="btn">取消</button>
+        <button @click="emit('close')" class="btn btn-sm btn-info">取消</button>
         <button
           @click="submitTxn"
-          class="btn"
+          class="btn btn-sm"
           :class="txn.type === 'BUY' ? 'btn-success' : 'btn-error'"
         >确认{{ txn.type === 'BUY' ? '买入' : '卖出' }}</button>
       </div>

@@ -98,7 +98,7 @@ async function submitAdd() {
             <option v-for="s in INVEST_STRATEGIES" :key="s.value" :value="s.value">{{ s.label }}</option>
           </select>
         </label>
-        <label class="text-sm">
+        <!-- <label class="text-sm">
           <span class="mb-1 block opacity-60">买入价</span>
           <input v-model="form.buyPrice" type="number" step="0.01" class="input input-bordered w-full" />
         </label>
@@ -109,7 +109,7 @@ async function submitAdd() {
         <label class="text-sm">
           <span class="mb-1 block opacity-60">买入日期</span>
           <input v-model="form.buyTime" type="date" class="input input-bordered w-full" />
-        </label>
+        </label> -->
         <label class="text-sm">
           <span class="mb-1 block opacity-60">止盈收益率 %</span>
           <input v-model="form.targetProfitRate" type="number" step="0.1" class="input input-bordered w-full" />
@@ -137,8 +137,8 @@ async function submitAdd() {
       </div>
       <p v-if="formError" class="mt-3 text-sm text-error">{{ formError }}</p>
       <div class="modal-action">
-        <button @click="emit('close')" class="btn">取消</button>
-        <button @click="submitAdd" class="btn btn-primary">保存</button>
+        <button @click="emit('close')" class="btn btn-sm btn-info">取消</button>
+        <button @click="submitAdd" class="btn btn-sm btn-primary">保存</button>
       </div>
     </div>
     <form class="modal-backdrop" @click="emit('close')"></form>

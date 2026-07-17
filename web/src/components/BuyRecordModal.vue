@@ -84,8 +84,8 @@ async function submitBuy() {
       </div>
       <p v-if="buyError" class="mt-3 text-sm text-error">{{ buyError }}</p>
       <div class="modal-action">
-        <button @click="emit('close')" class="btn">取消</button>
-        <button @click="submitBuy" class="btn btn-primary">保存</button>
+        <button @click="emit('close')" class="btn btn-sm btn-info">取消</button>
+        <button @click="submitBuy" class="btn btn-sm btn-primary">保存</button>
       </div>
     </div>
     <form class="modal-backdrop" @click="emit('close')"></form>

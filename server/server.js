@@ -206,9 +206,6 @@ function syncFromPurchases(h) {
 }
 
 function normalizePurchase(b, id) {
-  const buyPrice = Number(b.buyPrice);
-  const buyQuantity = Number(b.buyQuantity);
-  if (!buyPrice || !buyQuantity) throw new Error('买入价/买入数量必须为正');
   return {
     id: id || pid(),
     buyPrice,

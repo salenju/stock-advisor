@@ -38,12 +38,12 @@ const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add']);
           :title="isDark ? '切换到浅色' : '切换到深色'"
           class="btn btn-ghost btn-circle btn-sm"
         >{{ isDark ? '☀️' : '🌙' }}</button>
-        <button @click="emit('refresh')" class="btn btn-ghost btn-sm">刷新</button>
+        <button @click="emit('refresh')" class="btn btn-info btn-sm">刷新</button>
         <button
           @click="emit('test-feishu')"
           :disabled="testing"
           :title="testing ? '发送中…' : '向飞书机器人发送一条测试消息'"
-          class="btn btn-ghost btn-sm"
+          class="btn btn-warning btn-sm"
         >{{ testing ? '发送中…' : '测试飞书' }}</button>
         <button @click="emit('add')" class="btn btn-primary btn-sm">+ 添加持仓</button>
         <span

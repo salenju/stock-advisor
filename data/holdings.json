@@ -32,9 +32,9 @@
     "refillDropRate": 10,
     "refillPrice": 331.2,
     "nextStrategy": "若跌至 331 附近分批补仓",
-    "currentPrice": 484,
-    "prevClose": 474,
-    "lastUpdated": "2026-07-17T01:04:49.373Z",
+    "currentPrice": 461.6,
+    "prevClose": 484,
+    "lastUpdated": "2026-07-17T16:11:18.846Z",
     "triggerState": "IDLE",
     "notifiedAt": null,
     "cost": 38480,
@@ -90,93 +90,164 @@
     "stopLossRate": 9.07
   },
   {
-    "id": "h3",
-    "name": "Apple",
-    "code": "usAAPL",
+    "id": "hmrp44zx1eigb",
+    "name": "易方达蓝筹精选混合",
+    "code": "005827",
     "status": "持有",
-    "region": "美股",
-    "type": "股票",
+    "region": "sh",
+    "type": "股票型基金",
     "strategy": "long",
-    "snapshotDate": "2025-07-05",
-    "snapshotProfit": 800,
-    "snapshotReturnRate": 4,
-    "position": 20800,
+    "snapshotDate": "2026-07-17",
+    "snapshotProfit": 0,
+    "snapshotReturnRate": 0,
+    "position": 0,
     "purchases": [
       {
-        "id": "p3a",
-        "buyPrice": 200,
-        "buyQuantity": 100,
-        "buyTime": "2025-05-12",
+        "id": "pmrp44zx1ff65",
+        "buyPrice": 3.0335,
+        "buyQuantity": 1645.79,
+        "buyTime": "2021-01-13",
+        "targetProfitRate": 20,
+        "stopLossRate": 20
+      },
+      {
+        "id": "pmrp47fa26c5y",
+        "buyPrice": 2.5693,
+        "buyQuantity": 777.25,
+        "buyTime": "2021-09-29",
+        "targetProfitRate": 20,
+        "stopLossRate": 20
+      },
+      {
+        "id": "pmrp4aek5ztdg",
+        "buyPrice": 2.5942,
+        "buyQuantity": 769.79,
+        "buyTime": "2021-11-12",
+        "targetProfitRate": 20,
+        "stopLossRate": 20
+      },
+      {
+        "id": "pmrp4c4te76v9",
+        "buyPrice": 2.5563,
+        "buyQuantity": 390.6,
+        "buyTime": "2021-12-03",
+        "targetProfitRate": 20,
+        "stopLossRate": 10
+      },
+      {
+        "id": "pmrp4cu18yd2i",
+        "buyPrice": 2.5711,
+        "buyQuantity": 388.36,
+        "buyTime": "2022-01-21",
+        "targetProfitRate": 20,
+        "stopLossRate": 20
+      },
+      {
+        "id": "pmrp4drf0vwtt",
+        "buyPrice": 2.1424,
+        "buyQuantity": 466.07,
+        "buyTime": "2021-03-10",
+        "targetProfitRate": 20,
+        "stopLossRate": 20
+      },
+      {
+        "id": "pmrp4fn34y0wc",
+        "buyPrice": 2.1424,
+        "buyQuantity": 466.07,
+        "buyTime": "2022-03-10",
+        "targetProfitRate": 20,
+        "stopLossRate": 20
+      },
+      {
+        "id": "pmrp4geyuo7mp",
+        "buyPrice": 2.3747,
+        "buyQuantity": 420.47,
+        "buyTime": "2022-07-06",
         "targetProfitRate": 30,
-        "stopLossRate": 12
-      }
-    ],
-    "refillDropRate": 12,
-    "refillPrice": 176,
-    "nextStrategy": "美股长线，回调 12% 补仓",
-    "currentPrice": null,
-    "prevClose": null,
-    "lastUpdated": null,
-    "triggerState": "IDLE",
-    "notifiedAt": null,
-    "cost": 20000,
-    "buyQuantity": 100,
-    "lastBuyPrice": 200,
-    "avgCost": 200,
-    "targetProfitRate": 30,
-    "stopLossRate": 12
-  },
-  {
-    "id": "hmrnnwsda776c",
-    "name": "测试股",
-    "code": "hk99999",
-    "status": "已卖出",
-    "region": "hk",
-    "type": "股票",
-    "strategy": "highrisk",
-    "snapshotDate": "2026-07-16",
-    "snapshotProfit": 0,
-    "snapshotReturnRate": 0,
-    "position": 0,
-    "purchases": [],
-    "refillDropRate": 0,
-    "refillPrice": 0,
-    "nextStrategy": "",
-    "currentPrice": null,
-    "prevClose": null,
-    "lastUpdated": null,
-    "triggerState": "IDLE",
-    "notifiedAt": null,
-    "cost": 0,
-    "buyQuantity": 0,
-    "lastBuyPrice": 0,
-    "avgCost": 0,
-    "targetProfitRate": 18,
-    "stopLossRate": 6
-  },
-  {
-    "id": "hmrnnxk8cngry",
-    "name": "测试股",
-    "code": "hk99999",
-    "status": "持有",
-    "region": "hk",
-    "type": "股票",
-    "strategy": "highrisk",
-    "snapshotDate": "2026-07-16",
-    "snapshotProfit": 0,
-    "snapshotReturnRate": 0,
-    "position": 0,
-    "purchases": [
+        "stopLossRate": 30
+      },
       {
-        "id": "pmrnnxk8cbii6",
-        "buyPrice": 120,
-        "buyQuantity": 20,
-        "buyTime": "2026-07-20",
-        "targetProfitRate": 18,
-        "stopLossRate": 6
+        "id": "pmrp4hb3b4myz",
+        "buyPrice": 2.2566,
+        "buyQuantity": 442.48,
+        "buyTime": "2022-07-15",
+        "targetProfitRate": 30,
+        "stopLossRate": 30
+      },
+      {
+        "id": "pmrp4i058o31z",
+        "buyPrice": 1.9442,
+        "buyQuantity": 513.58,
+        "buyTime": "2022-10-17",
+        "targetProfitRate": 30,
+        "stopLossRate": 30
+      },
+      {
+        "id": "pmrp4l3y6sk3b",
+        "buyPrice": 1.679,
+        "buyQuantity": 594.7,
+        "buyTime": "2022-10-28",
+        "targetProfitRate": 30,
+        "stopLossRate": 30
+      },
+      {
+        "id": "pmrp4ly6ml3se",
+        "buyPrice": 1.8659,
+        "buyQuantity": 535.13,
+        "buyTime": "2023-10-23",
+        "targetProfitRate": 30,
+        "stopLossRate": 30
+      },
+      {
+        "id": "pmrp4mu53hcgr",
+        "buyPrice": 1.8304,
+        "buyQuantity": 1091.02,
+        "buyTime": "2024-12-13",
+        "targetProfitRate": 30,
+        "stopLossRate": 30
+      },
+      {
+        "id": "pmrp4nsevkf6w",
+        "buyPrice": 1.9979,
+        "buyQuantity": 499.77,
+        "buyTime": "2025-03-19",
+        "targetProfitRate": 30,
+        "stopLossRate": 30
+      },
+      {
+        "id": "pmrp4ormyxdmx",
+        "buyPrice": 1.7982,
+        "buyQuantity": 1110.55,
+        "buyTime": "2025-06-06",
+        "targetProfitRate": 30,
+        "stopLossRate": 30
+      },
+      {
+        "id": "pmrp4q4u96di2",
+        "buyPrice": 1.9231,
+        "buyQuantity": 2596.7,
+        "buyTime": "2026-01-19",
+        "targetProfitRate": 30,
+        "stopLossRate": 30
+      },
+      {
+        "id": "pmrp4rbv53jmb",
+        "buyPrice": 1.7539,
+        "buyQuantity": 1707.91,
+        "buyTime": "2026-04-15",
+        "targetProfitRate": 30,
+        "stopLossRate": 30
+      },
+      {
+        "id": "pmrp4t3eibhre",
+        "buyPrice": 1.6003,
+        "buyQuantity": 935.92,
+        "buyTime": "2026-06-02",
+        "targetProfitRate": 30,
+        "stopLossRate": 30
       }
     ],
-    "refillDropRate": 0,
+    "refillDropRate": 4.7,
     "refillPrice": 0,
     "nextStrategy": "",
     "currentPrice": null,
@@ -184,11 +255,11 @@
     "lastUpdated": null,
     "triggerState": "IDLE",
     "notifiedAt": null,
-    "cost": 2400,
-    "buyQuantity": 20,
-    "lastBuyPrice": 120,
-    "avgCost": 120,
-    "targetProfitRate": 18,
-    "stopLossRate": 6
+    "cost": 32452.448996000003,
+    "buyQuantity": 15352.159999999998,
+    "lastBuyPrice": 1.6003,
+    "avgCost": 2.1138686019426585,
+    "targetProfitRate": 26,
+    "stopLossRate": 25.69
   }
 ]

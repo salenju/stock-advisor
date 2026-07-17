@@ -37,19 +37,19 @@ function toggleExpand() {
         <div>
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-semibold">{{ holding.name }}</span>
-            <span class="badge badge-sm" :class="holding.status === '持有' ? 'badge-success' : 'badge-error'">{{ holding.status }}</span>
-            <span class="badge badge-sm" :class="regionBadge(holding.region).cls">{{ regionBadge(holding.region).text }}</span>
-            <span class="badge badge-sm badge-primary">{{ holding.type }}</span>
-            <span class="badge badge-sm" :class="strategyBadge(holding.strategy).cls">{{ strategyBadge(holding.strategy).text }}</span>
-            <span class="badge badge-sm" :class="triggerBadge(holding.triggerState).cls">{{ triggerBadge(holding.triggerState).text }}</span>
+            <span class="badge badge-s text-white" :class="holding.status === '持有' ? 'badge-success' : 'badge-error'">{{ holding.status }}</span>
+            <span class="badge badge-s text-white" :class="regionBadge(holding.region).cls">{{ regionBadge(holding.region).text }}</span>
+            <span class="badge badge-s badge-primary text-white">{{ holding.type }}</span>
+            <span class="badge badge-s text-white" :class="strategyBadge(holding.strategy).cls">{{ strategyBadge(holding.strategy).text }}</span>
+            <span class="badge badge-s text-white" :class="triggerBadge(holding.triggerState).cls">{{ triggerBadge(holding.triggerState).text }}</span>
           </div>
           <div class="mt-1 font-mono text-xs opacity-60">{{ holding.code }}</div>
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <button @click="emit('open-txn', 'BUY')" class="btn btn-success btn-xs">买入</button>
+        <!-- <button @click="emit('open-txn', 'BUY')" class="btn btn-success btn-xs">买入</button> -->
+        <button @click="emit('open-add-buy')" class="btn btn-success btn-xs">+ 买入记录</button>
         <button @click="emit('open-txn', 'SELL')" class="btn btn-error btn-xs">卖出</button>
-        <button @click="emit('open-add-buy')" class="btn btn-primary btn-xs">+ 买入记录</button>
       </div>
     </div>
 

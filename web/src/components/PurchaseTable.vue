@@ -1,6 +1,6 @@
 <script setup>
 import {
-  fmtDate, fmtPrice, fmtQty, fmtMoney, fmtPct, profitCls,
+  fmt, fmtDate, fmtPrice, fmtQty, fmtMoney, fmtPct, profitCls,
 } from '../composables/useFormat.js';
 
 defineProps({
