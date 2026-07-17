@@ -206,6 +206,11 @@ function syncFromPurchases(h) {
 }
 
 function normalizePurchase(b, id) {
+  const buyPrice = Number(b.buyPrice);
+  const buyQuantity = Number(b.buyQuantity);
+  if (!(buyPrice > 0) || !(buyQuantity > 0)) {
+    throw new Error('买入价/买入数量必须为正');
+  }
   return {
     id: id || pid(),
     buyPrice,
@@ -223,23 +228,10 @@ function createHolding(b) {
     if (!b[k] || !String(b[k]).trim()) throw new Error(`缺少字段: ${k}`);
   }
 
-  let purchases;
+  // 允许「先建仓、后补买入记录」：purchases 可空，买入价/数量由「买入记录」补充
+  let purchases = [];
   if (Array.isArray(b.purchases) && b.purchases.length) {
     purchases = b.purchases.map((p) => normalizePurchase(p));
-  } else {
-    // 兼容旧版表单：单条买入
-    const buyPrice = Number(b.buyPrice);
-    const buyQuantity = Number(b.buyQuantity);
-    if (!buyPrice || !buyQuantity) throw new Error('缺少买入价/买入数量');
-    purchases = [
-      normalizePurchase({
-        buyPrice,
-        buyQuantity,
-        buyTime: b.buyTime || today,
-        targetProfitRate: b.targetProfitRate,
-        stopLossRate: b.stopLossRate,
-      }),
-    ];
   }
 
   const h = {

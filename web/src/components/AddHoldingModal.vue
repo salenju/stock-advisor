@@ -42,15 +42,8 @@ async function submitAdd() {
     region: form.value.region,
     type: form.value.type,
     strategy: form.value.strategy,
-    purchases: [
-      {
-        buyPrice: form.value.buyPrice,
-        buyQuantity: form.value.buyQuantity,
-        buyTime: form.value.buyTime,
-        targetProfitRate: form.value.targetProfitRate,
-        stopLossRate: form.value.stopLossRate,
-      },
-    ],
+    // 建仓阶段只登记股票信息，买入价/数量后续由「买入记录」补充
+    purchases: [],
     refillDropRate: form.value.refillDropRate,
     refillPrice: form.value.refillPrice,
     position: form.value.position,
