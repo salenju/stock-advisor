@@ -106,57 +106,117 @@ function derivePurchase(p, currentPrice) {
   };
 }
 
+// 卖出记录派生字段
+function deriveSell(s) {
+  const qty = Number(s.sellQuantity) || 0;
+  const sellPrice = Number(s.sellPrice) || 0;
+  const costPrice = Number(s.costPrice) || 0;
+  const cost = costPrice * qty;
+  const amount = sellPrice * qty;
+  const profit = Number(s.profit) ?? ((sellPrice - costPrice) * qty);
+  const returnRate = Number(s.returnRate) ?? (costPrice > 0 ? ((sellPrice - costPrice) / costPrice) * 100 : 0);
+  return {
+    type: 'SELL',
+    id: s.id,
+    buyTime: s.sellDate || s.sellTime, // 统一用 buyTime 作为日期字段
+    buyPrice: sellPrice,
+    buyQuantity: qty,
+    cost,
+    marketValue: amount,
+    profit,
+    returnRate,
+    targetProfitRate: null,
+    stopLossRate: null,
+    targetPrice: null,
+    stopLossPrice: null,
+  };
+}
+
 // 派生展示字段（汇总 + 每次买入明细 + 今日/持仓收益）
 function withDerived(h) {
   const price = h.currentPrice;
   const prevClose = h.prevClose;
 
-  const purchases = (h.purchases || []).map((p) => derivePurchase(p, price));
+  const purchases = (h.purchases || [])
+    .map((p) => derivePurchase(p, price))
+    .sort((a, b) => String(b.buyTime || '').localeCompare(String(a.buyTime || '')));
+
+  const sells = (h.sells || [])
+    .map((s) => deriveSell(s))
+    .sort((a, b) => String(b.buyTime || '').localeCompare(String(a.buyTime || '')));
+
+  // 合并买入/卖出记录统一展示（买入收益置 null → 前端显示 "-- / --"）
+  const transactions = [
+    ...purchases.map((p) => ({ ...p, type: 'BUY', profit: null, returnRate: null })),
+    ...sells,
+  ].sort((a, b) => String(b.buyTime || '').localeCompare(String(a.buyTime || '')));
 
   const totalCost = purchases.reduce((s, p) => s + p.cost, 0);
   const totalQuantity = purchases.reduce((s, p) => s + Number(p.buyQuantity) || 0, 0);
-  const avgCost = totalQuantity > 0 ? totalCost / totalQuantity : 0;
+  const totalSoldQty = sells.reduce((s, sel) => s + (Number(sel.buyQuantity) || 0), 0);
+  const totalSoldCost = sells.reduce((s, sel) => s + (Number(sel.cost) || 0), 0);
+  const unsoldQuantity = Math.max(totalQuantity - totalSoldQty, 0);
+  // 剩余仓位成本 = 总买入成本 - 已卖出部分的成本
+  const remainingCost = Math.max(totalCost - totalSoldCost, 0);
+  const avgCost = unsoldQuantity > 0 ? remainingCost / unsoldQuantity : 0;
+
+  // 已实现盈利 = 所有卖出记录的 profit 之和
+  const realizedProfit = sells.reduce((s, sel) => s + (Number(sel.profit) || 0), 0);
+  // 未实现盈利 = (现价 - 均价) * 未卖出数量
+  const unrealizedProfit =
+    price != null && unsoldQuantity > 0 && avgCost > 0
+      ? (Number(price) - avgCost) * unsoldQuantity
+      : null;
 
   const marketValue =
-    price != null ? Number(price) * totalQuantity : null;
+    price != null ? Number(price) * unsoldQuantity : null;
 
-  // 持仓收益 = 市值 - 总成本
+  // 需求 3.2：持仓收益 = 未实现 + 已实现
   const holdingProfit =
-    price != null ? Number(price) * totalQuantity - totalCost : null;
+    unrealizedProfit != null
+      ? unrealizedProfit + realizedProfit
+      : realizedProfit !== 0
+        ? realizedProfit
+        : null;
   const holdingReturnRate =
-    price != null && totalCost > 0
+    totalCost > 0 && holdingProfit != null
       ? (holdingProfit / totalCost) * 100
       : null;
 
-  // 今日收益 = (现价 - 昨收) * 总数量
+  // 需求 3.1：今日收益仅用未卖出数量
   const todayProfit =
-    price != null && prevClose != null
-      ? (Number(price) - Number(prevClose)) * totalQuantity
+    price != null && prevClose != null && unsoldQuantity > 0
+      ? (Number(price) - Number(prevClose)) * unsoldQuantity
       : null;
   const todayReturnRate =
     price != null && prevClose != null && Number(prevClose) > 0
       ? ((Number(price) - Number(prevClose)) / Number(prevClose)) * 100
       : null;
 
-  // 最近买入价（按买入时间取最新一条），用于补仓策略
+  // 最近买入价（按买入时间取最新一条）
   const lastBuyPrice =
     purchases.length > 0
       ? [...purchases].sort((a, b) => String(b.buyTime).localeCompare(String(a.buyTime)))[0].buyPrice
       : 0;
 
-  // 持仓级止盈/止亏 = 按成本加权的买入记录均值，供策略与提醒使用
-  const wTarget = totalCost > 0
-    ? purchases.reduce((s, p) => s + (Number(p.targetProfitRate) || 0) * p.cost, 0) / totalCost
-    : 0;
-  const wStop = totalCost > 0
-    ? purchases.reduce((s, p) => s + (Number(p.stopLossRate) || 0) * p.cost, 0) / totalCost
-    : 0;
+  // 持仓级止盈/止亏 = 按成本加权的买入记录均值
+  const wTarget =
+    totalCost > 0
+      ? purchases.reduce((s, p) => s + (Number(p.targetProfitRate) || 0) * p.cost, 0) / totalCost
+      : 0;
+  const wStop =
+    totalCost > 0
+      ? purchases.reduce((s, p) => s + (Number(p.stopLossRate) || 0) * p.cost, 0) / totalCost
+      : 0;
 
   return {
     ...h,
     purchases,
-    cost: totalCost,
-    buyQuantity: totalQuantity,
+    transactions,                    // 前端表用此字段展示（含买入+卖出）
+    cost: remainingCost,
+    buyQuantity: unsoldQuantity,
+    sellQuantity: totalSoldQty,
+    unsoldQuantity,
     avgCost,
     lastBuyPrice,
     marketValue,
@@ -173,33 +233,40 @@ function withDerived(h) {
   };
 }
 
-// 由买入记录反推持仓级成本/数量/最近买入价（落盘前同步，避免派生字段漂移）
+// 由买入/卖出记录反推剩余持仓的成本/数量/均价（落盘前同步）
 function syncFromPurchases(h) {
-  const totalCost = (h.purchases || []).reduce(
-    (s, p) => s + (Number(p.buyPrice) || 0) * (Number(p.buyQuantity) || 0),
-    0
+  const totalBuy = (h.purchases || []).reduce(
+    (s, p) => s + (Number(p.buyPrice) || 0) * (Number(p.buyQuantity) || 0), 0
   );
-  const totalQuantity = (h.purchases || []).reduce(
-    (s, p) => s + (Number(p.buyQuantity) || 0),
-    0
+  const totalBuyQty = (h.purchases || []).reduce(
+    (s, p) => s + (Number(p.buyQuantity) || 0), 0
   );
+  // 扣除已卖出部分的成本（每笔 sell 的 costPrice 是在卖出时按 LIFO 计算的均价）
+  const totalSellCost = (h.sells || []).reduce(
+    (s, sel) => s + (Number(sel.costPrice) || 0) * (Number(sel.sellQuantity) || 0), 0
+  );
+  const totalSellQty = (h.sells || []).reduce(
+    (s, sel) => s + (Number(sel.sellQuantity) || 0), 0
+  );
+  const remainingCost = Math.max(totalBuy - totalSellCost, 0);
+  const remainingQty = Math.max(totalBuyQty - totalSellQty, 0);
+  const avgCost = remainingQty > 0 ? remainingCost / remainingQty : 0;
+
   const lastBuyPrice =
     (h.purchases || []).length > 0
       ? [...h.purchases].sort((a, b) => String(b.buyTime).localeCompare(String(a.buyTime)))[0].buyPrice
       : 0;
-  const totalC = totalCost || 1;
+  const totalC = totalBuy || 1;
   const wTarget = (h.purchases || []).reduce(
-    (s, p) => s + (Number(p.targetProfitRate) || 0) * (Number(p.buyPrice) * Number(p.buyQuantity)),
-    0
+    (s, p) => s + (Number(p.targetProfitRate) || 0) * (Number(p.buyPrice) * Number(p.buyQuantity)), 0
   ) / totalC;
   const wStop = (h.purchases || []).reduce(
-    (s, p) => s + (Number(p.stopLossRate) || 0) * (Number(p.buyPrice) * Number(p.buyQuantity)),
-    0
+    (s, p) => s + (Number(p.stopLossRate) || 0) * (Number(p.buyPrice) * Number(p.buyQuantity)), 0
   ) / totalC;
-  h.cost = totalCost;
-  h.buyQuantity = totalQuantity;
+  h.cost = remainingCost;
+  h.buyQuantity = remainingQty;
   h.lastBuyPrice = lastBuyPrice;
-  h.avgCost = totalQuantity > 0 ? totalCost / totalQuantity : 0;
+  h.avgCost = avgCost;
   if (wTarget) h.targetProfitRate = +wTarget.toFixed(2);
   if (wStop) h.stopLossRate = +wStop.toFixed(2);
   return h;
@@ -247,6 +314,7 @@ function createHolding(b) {
     snapshotReturnRate: Number(b.snapshotReturnRate) || 0,
     position: Number(b.position) || 0,
     purchases,
+    sells: [],                      // 卖出记录（独立于买入记录）
     // 补仓计划（持仓级）
     refillDropRate: Number(b.refillDropRate) || 0,
     refillPrice: Number(b.refillPrice) || 0,
@@ -260,7 +328,7 @@ function createHolding(b) {
   return syncFromPurchases(h);
 }
 
-// 应用一笔买入/卖出交易（基于买入记录模型）
+// 应用一笔买入/卖出交易
 function applyTransaction(h, txn) {
   const qty = Number(txn.quantity);
   const price = Number(txn.price);
@@ -279,19 +347,39 @@ function applyTransaction(h, txn) {
     );
     h.status = '持有';
   } else if (txn.type === 'SELL') {
-    let toSell = qty;
-    // LIFO：从最新买入记录开始扣减
-    const sorted = [...h.purchases].sort((a, b) => String(b.buyTime).localeCompare(String(a.buyTime)));
+    // 需求 1：不修改买入记录，添加一条卖出记录
+    h.sells = h.sells || [];
+    // LIFO 计算卖出部分的成本
+    const sorted = [...(h.purchases || [])].sort((a, b) =>
+      String(b.buyTime).localeCompare(String(a.buyTime))
+    );
+    let remaining = qty;
+    let totalCost = 0;
     for (const p of sorted) {
-      if (toSell <= 0) break;
-      const take = Math.min(toSell, p.buyQuantity);
-      p.buyQuantity -= take;
-      toSell -= take;
+      if (remaining <= 0) break;
+      const take = Math.min(remaining, Number(p.buyQuantity) || 0);
+      totalCost += take * (Number(p.buyPrice) || 0);
+      remaining -= take;
     }
-    h.purchases = h.purchases.filter((p) => p.buyQuantity > 0);
-    if ((h.purchases || []).reduce((s, p) => s + p.buyQuantity, 0) <= 0) {
-      h.status = '已卖出';
-    }
+    if (remaining > 0) throw new Error('卖出数量超过持仓数量');
+
+    const costPrice = totalCost / qty;
+    const profit = (price - costPrice) * qty;
+    const returnRate = costPrice > 0 ? ((price - costPrice) / costPrice) * 100 : 0;
+    h.sells.push({
+      id: pid(),
+      sellPrice: price,
+      sellQuantity: qty,
+      sellDate: txn.date || new Date().toISOString().slice(0, 10),
+      costPrice,
+      profit,
+      returnRate,
+    });
+
+    // 更新持仓状态
+    const totalBought = (h.purchases || []).reduce((s, p) => s + (Number(p.buyQuantity) || 0), 0);
+    const totalSold = (h.sells || []).reduce((s, sel) => s + (Number(sel.sellQuantity) || 0), 0);
+    h.status = totalSold >= totalBought ? '全部卖出' : '持有';
   } else {
     throw new Error('type 必须为 BUY 或 SELL');
   }

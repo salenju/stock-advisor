@@ -32,18 +32,17 @@
     "refillDropRate": 10,
     "refillPrice": 331.2,
     "nextStrategy": "若跌至 331 附近分批补仓",
-    "currentPrice": 434.6,
-    "prevClose": 445.2,
-    "lastUpdated": "2026-07-25T02:23:59.945Z",
-    "triggerState": "SELL",
-    "notifiedAt": "2026-07-25T02:23:59.945Z",
+    "currentPrice": 461.6,
+    "prevClose": 484,
+    "lastUpdated": "2026-07-17T16:45:39.228Z",
+    "triggerState": "IDLE",
+    "notifiedAt": null,
     "cost": 38480,
     "buyQuantity": 108,
     "lastBuyPrice": 210,
     "avgCost": 356.2962962962963,
     "targetProfitRate": 20.41,
-    "stopLossRate": 9.72,
-    "sells": []
+    "stopLossRate": 9.72
   },
   {
     "id": "h2",
@@ -78,18 +77,17 @@
     "refillDropRate": 8,
     "refillPrice": 974.2,
     "nextStrategy": "长期持有，止盈 25% 减仓",
-    "currentPrice": 1297.41,
-    "prevClose": 1292.01,
-    "lastUpdated": "2026-07-25T02:23:59.945Z",
-    "triggerState": "SELL",
-    "notifiedAt": "2026-07-25T02:23:59.945Z",
+    "currentPrice": null,
+    "prevClose": null,
+    "lastUpdated": null,
+    "triggerState": "IDLE",
+    "notifiedAt": null,
     "cost": 229000,
     "buyQuantity": 1100,
     "lastBuyPrice": 123,
     "avgCost": 208.1818181818182,
     "targetProfitRate": 22.31,
-    "stopLossRate": 9.07,
-    "sells": []
+    "stopLossRate": 9.07
   },
   {
     "id": "hmrp44zx1eigb",
@@ -262,8 +260,7 @@
     "lastBuyPrice": 1.6003,
     "avgCost": 2.1138686019426585,
     "targetProfitRate": 26,
-    "stopLossRate": 25.69,
-    "sells": []
+    "stopLossRate": 25.69
   },
   {
     "id": "hmrp5vc7h6kka",
@@ -340,7 +337,6 @@
     "lastBuyPrice": 2.2515,
     "avgCost": 2.0631154886374197,
     "targetProfitRate": 40,
-    "stopLossRate": 30,
-    "sells": []
+    "stopLossRate": 30
   }
 ]

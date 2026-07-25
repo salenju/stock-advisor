@@ -50,7 +50,7 @@ async function submitTxn() {
       <h2 class="mb-1 text-lg font-semibold">
         {{ txn.type === 'BUY' ? '买入' : '卖出' }} · {{ txn.name }}
       </h2>
-      <p class="mb-4 text-xs opacity-60">对已有持仓追加交易，系统自动重算成本/数量/最近买入价/状态</p>
+      <p class="mb-4 text-xs opacity-60">{{ txn.type === 'BUY' ? '添加一笔买入记录' : '添加一笔卖出记录（系统自动计算卖出收益）' }}</p>
       <div class="space-y-3">
         <label class="block text-sm">
           <span class="mb-1 block opacity-60">价格</span>

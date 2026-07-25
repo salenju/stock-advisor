@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { REFRESH_MS } from './constants/options.js';
+import { REFRESH_MS, REGION_LABEL } from './constants/options.js';
 import { useTheme } from './composables/useTheme.js';
 import { useHoldings } from './composables/useHoldings.js';
 
@@ -71,6 +71,51 @@ async function handleDeleteBuy(h, p) {
   await deletePurchase(h, p);
 }
 
+// ---------- 多选标签过滤 ----------
+const FILTER_GROUPS = [
+  {
+    label: '类型',
+    key: 'type',
+    options: ['股票', '股票型基金', '债券型基金', '货币型基金', 'ETF'],
+  },
+  {
+    label: '市场',
+    key: 'region',
+    options: ['hk', 'us', 'sh', 'sz'],
+    text: (v) => REGION_LABEL[v] || v,
+  },
+];
+const activeFilters = ref({ type: [], region: [] });
+function toggleFilter(groupKey, value) {
+  const arr = activeFilters.value[groupKey];
+  const idx = arr.indexOf(value);
+  if (idx >= 0) arr.splice(idx, 1);
+  else arr.push(value);
+}
+function isFilterActive(groupKey, value) {
+  return activeFilters.value[groupKey].includes(value);
+}
+function clearFilters() {
+  activeFilters.value = { type: [], region: [] };
+}
+const hasActiveFilters = computed(
+  () => activeFilters.value.type.length > 0 || activeFilters.value.region.length > 0
+);
+// 地区中文名 → 短代码映射（数据中两种格式混用）
+const REGION_SHORT = { 港股: 'hk', 美股: 'us', 沪: 'sh', 深: 'sz', A股: 'sh' };
+function normRegion(r) {
+  return REGION_SHORT[r] || r;
+}
+const filteredHoldings = computed(() => {
+  const { type: ft, region: fr } = activeFilters.value;
+  if (!ft.length && !fr.length) return holdings.value;
+  return holdings.value.filter((h) => {
+    if (ft.length && !ft.includes(h.type)) return false;
+    if (fr.length && !fr.includes(normRegion(h.region))) return false;
+    return true;
+  });
+});
+
 onMounted(() => {
   initTheme();
   fetchHoldings();
@@ -102,15 +147,35 @@ onUnmounted(() => {
 
     <main class="mx-auto max-w-7xl px-6 py-6">
       <OverviewCards
-        :count="holdings.length"
+        :count="filteredHoldings.length"
         :total-cost="totalCost"
         :total-market="totalMarket"
         :total-today-profit="totalTodayProfit"
         :total-holding-profit="totalHoldingProfit"
       />
 
+      <!-- 多选标签过滤 -->
+      <div class="mb-4 flex flex-wrap items-center gap-2">
+        <template v-for="g in FILTER_GROUPS" :key="g.key">
+          <span class="text-xs font-medium opacity-60">{{ g.label }}：</span>
+          <button
+            v-for="opt in g.options" :key="opt"
+            @click="toggleFilter(g.key, opt)"
+            class="rounded-full px-2.5 py-1 text-xs font-medium transition"
+            :class="isFilterActive(g.key, opt)
+              ? 'bg-sky-600 text-white shadow-sm'
+              : 'border border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200'"
+          >{{ g.text ? g.text(opt) : opt }}</button>
+        </template>
+        <button
+          v-if="hasActiveFilters"
+          @click="clearFilters"
+          class="rounded-full px-2.5 py-1 text-xs font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+        >清除过滤</button>
+      </div>
+
       <HoldingList
-        :holdings="holdings"
+        :holdings="filteredHoldings"
         @open-txn="openTxn"
         @open-add-buy="openAddBuy"
         @edit-buy="openEditBuy"

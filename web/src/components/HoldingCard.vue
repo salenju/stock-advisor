@@ -47,9 +47,8 @@ function toggleExpand() {
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <!-- <button @click="emit('open-txn', 'BUY')" class="btn btn-success btn-xs">买入</button> -->
         <button @click="emit('open-add-buy')" class="btn btn-success btn-xs">+ 买入记录</button>
-        <button @click="emit('open-txn', 'SELL')" class="btn btn-error btn-xs">卖出</button>
+        <button @click="emit('open-txn', 'SELL')" class="btn btn-error btn-xs">+ 卖出记录</button>
       </div>
     </div>
 

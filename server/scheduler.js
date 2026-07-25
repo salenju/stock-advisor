@@ -107,7 +107,7 @@ export async function runOnce(cfg) {
       type: h.type,
       code: h.code,
       trigger: r.trigger,
-      currentPrice: price,
+      currentPrice: q.price,
       advice: r.advice,
       summary,
     }).catch((e) => console.error('[notify]', e.message));

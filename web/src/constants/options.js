@@ -26,7 +26,7 @@ export const TYPE_OPTIONS = [
 ];
 
 // 地区短标签（用于徽章文字）
-export const REGION_LABEL = { hk: '港股', us: '美股', sh: 'A股', sz: 'A股' };
+export const REGION_LABEL = { hk: '港股', us: '美股', sh: 'A股-沪', sz: 'A股-深' };
 
 // 自动刷新间隔（毫秒），与后端调度一致
 export const REFRESH_MS = 20000;
