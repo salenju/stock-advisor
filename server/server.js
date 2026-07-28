@@ -251,6 +251,10 @@ function createHolding(b) {
     refillDropRate: Number(b.refillDropRate) || 0,
     refillPrice: Number(b.refillPrice) || 0,
     nextStrategy: b.nextStrategy || '',
+    // 日涨跌飞书告警阈值（百分比，为空=不告警）
+    dailyDropAlertPct: b.dailyDropAlertPct != null ? Number(b.dailyDropAlertPct) : null,
+    dailyRiseAlertPct: b.dailyRiseAlertPct != null ? Number(b.dailyRiseAlertPct) : null,
+    dailyAlertSentDate: null,
     currentPrice: null,
     prevClose: null,
     lastUpdated: null,
@@ -325,8 +329,23 @@ async function handleApi(req, res, url, cfg) {
     return sendJSON(res, 201, { data: withDerived(h) });
   }
 
+  // 更新持仓级字段（日涨跌告警阈值等）
+  let m = url.pathname.match(/^\/api\/holdings\/([^/]+)$/);
+  if (req.method === 'PATCH' && m) {
+    const list = await loadHoldings();
+    const h = list.find((x) => x.id === m[1]);
+    if (!h) return sendJSON(res, 404, { error: '持仓不存在' });
+    const body = await readBody(req);
+    if (body.dailyDropAlertPct !== undefined) h.dailyDropAlertPct = body.dailyDropAlertPct != null ? Number(body.dailyDropAlertPct) : null;
+    if (body.dailyRiseAlertPct !== undefined) h.dailyRiseAlertPct = body.dailyRiseAlertPct != null ? Number(body.dailyRiseAlertPct) : null;
+    // 重置每日告警标记，让下次触发立即推送
+    h.dailyAlertSentDate = null;
+    await saveHoldings(list);
+    return sendJSON(res, 200, { data: withDerived(h) });
+  }
+
   // 对已有持仓追加买入记录
-  let m = url.pathname.match(/^\/api\/holdings\/([^/]+)\/purchases$/);
+  m = url.pathname.match(/^\/api\/holdings\/([^/]+)\/purchases$/);
   if (req.method === 'POST' && m) {
     const list = await loadHoldings();
     const h = list.find((x) => x.id === m[1]);

@@ -1,13 +1,15 @@
 import { loadHoldings, saveHoldings } from './store.js';
 import { fetchPrices } from './provider/tencent.js';
+import { fetchFundNavs } from './provider/fund.js';
 import { evaluate } from './strategy.js';
 import { sendCard } from './notifier.js';
 
 // 各市场对应时区（用于判断交易时段）
 const REGION_TZ = {
-  'A股': 'Asia/Shanghai',
-  '港股': 'Asia/Hong_Kong',
-  '美股': 'America/New_York',
+  hk: 'Asia/Hong_Kong',
+  sh: 'Asia/Shanghai',
+  sz: 'Asia/Shanghai',
+  us: 'America/New_York',
 };
 
 // 取某时区下的本地 周几/时/分
@@ -36,11 +38,11 @@ function inRange(h, m, sH, sM, eH, eM) {
 function isMarketOpen(region, date) {
   const { isWeekend, h, m } = marketLocal(date, REGION_TZ[region]);
   if (isWeekend) return false;
-  if (region === 'A股')
+  if (region === 'sh' || region === 'sz')
     return inRange(h, m, 9, 30, 11, 30) || inRange(h, m, 13, 0, 15, 0);
-  if (region === '港股')
+  if (region === 'hk')
     return inRange(h, m, 9, 30, 12, 0) || inRange(h, m, 13, 0, 16, 0);
-  if (region === '美股') return inRange(h, m, 9, 30, 16, 0);
+  if (region === 'us') return inRange(h, m, 9, 30, 16, 0);
   return false;
 }
 
@@ -67,14 +69,27 @@ export async function runOnce(cfg) {
   const open = anyMarketOpen(holdings, now);
   const mode = open ? '交易时段' : '非交易时段(降频)';
 
-  const prices = await fetchPrices(active.map((h) => h.code)).catch((e) => {
-    console.error('[fetch]', e.message);
-    return {};
-  });
+  // 按类型分流：基金走东方财富净值 API，股票走腾讯行情 API
+  const isFund = (h) => h.type && h.type.includes('基金');
+  const stockCodes = active.filter((h) => !isFund(h)).map((h) => h.region + h.code);
+  const fundCodes = active.filter((h) => isFund(h)).map((h) => h.code);
+
+  const [stockPrices, fundPrices] = await Promise.all([
+    fetchPrices(stockCodes).catch((e) => {
+      console.error('[stock-fetch]', e.message);
+      return {};
+    }),
+    fetchFundNavs(fundCodes).catch((e) => {
+      console.error('[fund-fetch]', e.message);
+      return {};
+    }),
+  ]);
+  const prices = { ...stockPrices, ...fundPrices };
 
   let changed = false;
   for (const h of active) {
-    const q = prices[h.code];
+    const key = isFund(h) ? h.code : h.region + h.code;
+    const q = prices[key];
     if (!q || q.price == null) {
       console.warn(`[skip] ${h.code} 无行情`);
       continue;
@@ -82,6 +97,31 @@ export async function runOnce(cfg) {
     h.currentPrice = q.price;
     h.prevClose = q.prevClose;
     h.lastUpdated = now.toISOString();
+
+    // ---------- 日涨跌告警（DAILY_DROP / DAILY_RISE）----------
+    const todayDate = now.toISOString().slice(0, 10);
+    const todayReturnRate = q.prevClose > 0 ? ((q.price - q.prevClose) / q.prevClose) * 100 : 0;
+
+    if (h.dailyDropAlertPct != null || h.dailyRiseAlertPct != null) {
+      let dailyTrigger = null;
+      if (h.dailyRiseAlertPct != null && todayReturnRate >= h.dailyRiseAlertPct) {
+        dailyTrigger = 'DAILY_RISE';
+      } else if (h.dailyDropAlertPct != null && todayReturnRate <= -Math.abs(h.dailyDropAlertPct)) {
+        dailyTrigger = 'DAILY_DROP';
+      }
+      if (dailyTrigger && h.dailyAlertSentDate !== todayDate) {
+        const change = dailyTrigger === 'DAILY_RISE' ? `+${todayReturnRate.toFixed(2)}%` : `${todayReturnRate.toFixed(2)}%`;
+        await sendCard(cfg, {
+          name: h.name, region: h.region, type: h.type, code: h.code,
+          trigger: dailyTrigger,
+          currentPrice: q.price,
+          advice: `今日${dailyTrigger === 'DAILY_RISE' ? '涨幅' : '跌幅'} ${change}，超出告警阈值，请注意风险。`,
+          summary: `今日${change} · 阈值触发`,
+        }).catch((e) => console.error('[notify-daily]', e.message));
+        h.dailyAlertSentDate = todayDate;
+        changed = true;
+      }
+    }
 
     const r = evaluate(h, cfg.notify.nearThresholdPct);
     if (r.trigger === 'NONE') {

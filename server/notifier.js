@@ -2,6 +2,43 @@ import crypto from 'node:crypto';
 
 // 构造飞书 interactive 卡片消息
 export function buildCard(payload) {
+  // 日涨跌告警
+  if (payload.trigger === 'DAILY_RISE' || payload.trigger === 'DAILY_DROP') {
+    const isRise = payload.trigger === 'DAILY_RISE';
+    return {
+      msg_type: 'interactive',
+      card: {
+        config: { wide_screen_mode: true },
+        header: {
+          title: { tag: 'plain_text', content: `【日涨跌告警 · ${isRise ? '大涨' : '大跌'}】` },
+          template: isRise ? 'red' : 'yellow',
+        },
+        elements: [
+          {
+            tag: 'div',
+            fields: [
+              { is_short: true, text: { tag: 'lark_md', content: `**品种**\n${payload.name}` } },
+              { is_short: true, text: { tag: 'lark_md', content: `**代码**\n${payload.code}` } },
+              { is_short: true, text: { tag: 'lark_md', content: `**市场/类型**\n${payload.region} / ${payload.type}` } },
+              { is_short: true, text: { tag: 'lark_md', content: `**当前价**\n${payload.currentPrice}` } },
+            ],
+          },
+          { tag: 'hr' },
+          {
+            tag: 'div',
+            text: { tag: 'lark_md', content: `**详情**\n${payload.advice}` },
+          },
+          {
+            tag: 'note',
+            elements: [
+              { tag: 'plain_text', content: `股票秘书 · ${payload.summary}` },
+            ],
+          },
+        ],
+      },
+    };
+  }
+
   const isBuy = payload.trigger === 'BUY';
   const title = isBuy ? '【买点提醒 · 补仓】' : '【卖点提醒 · 止盈】';
   const template = isBuy ? 'green' : 'red';
