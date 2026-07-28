@@ -20,6 +20,7 @@ function blankForm() {
     targetProfitRate: '', stopLossRate: '',
     refillDropRate: '', refillPrice: '',
     position: '', nextStrategy: '', snapshotProfit: '', snapshotReturnRate: '',
+    dailyDropAlertPct: '', dailyRiseAlertPct: '',
   };
 }
 
@@ -50,6 +51,8 @@ async function submitAdd() {
     nextStrategy: form.value.nextStrategy,
     snapshotProfit: form.value.snapshotProfit,
     snapshotReturnRate: form.value.snapshotReturnRate,
+    dailyDropAlertPct: form.value.dailyDropAlertPct || undefined,
+    dailyRiseAlertPct: form.value.dailyRiseAlertPct || undefined,
   };
   try {
     await addHolding(b);
@@ -118,6 +121,14 @@ async function submitAdd() {
         <label class="text-sm">
           <span class="mb-1 block opacity-60">补仓价格</span>
           <input v-model="form.refillPrice" type="number" step="0.01" class="input input-bordered w-full" />
+        </label>
+        <label class="text-sm">
+          <span class="mb-1 block opacity-60">日跌告警 %</span>
+          <input v-model="form.dailyDropAlertPct" type="number" step="0.1" class="input input-bordered w-full" placeholder="留空=不告警" />
+        </label>
+        <label class="text-sm">
+          <span class="mb-1 block opacity-60">日涨告警 %</span>
+          <input v-model="form.dailyRiseAlertPct" type="number" step="0.1" class="input input-bordered w-full" placeholder="留空=不告警" />
         </label>
         <label class="text-sm">
           <span class="mb-1 block opacity-60">仓位(参考)</span>

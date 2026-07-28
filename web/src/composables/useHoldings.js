@@ -117,6 +117,18 @@ async function deletePurchase(h, p) {
   }
 }
 
+// 更新持仓级字段（日涨跌告警阈值等）
+async function updateHolding(id, body) {
+  const res = await fetch(`/api/holdings/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || '更新失败');
+  await fetchHoldings();
+}
+
 export function useHoldings() {
   return {
     holdings,
@@ -136,5 +148,6 @@ export function useHoldings() {
     submitTransaction,
     savePurchase,
     deletePurchase,
+    updateHolding,
   };
 }

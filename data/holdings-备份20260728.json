@@ -32,18 +32,17 @@
     "refillDropRate": 10,
     "refillPrice": 331.2,
     "nextStrategy": "若跌至 331 附近分批补仓",
-    "currentPrice": 434.6,
-    "prevClose": 445.2,
-    "lastUpdated": "2026-07-25T04:36:59.135Z",
-    "triggerState": "SELL",
-    "notifiedAt": "2026-07-25T04:36:59.135Z",
+    "currentPrice": 461.6,
+    "prevClose": 484,
+    "lastUpdated": "2026-07-17T16:45:39.228Z",
+    "triggerState": "IDLE",
+    "notifiedAt": null,
     "cost": 38480,
     "buyQuantity": 108,
     "lastBuyPrice": 210,
     "avgCost": 356.2962962962963,
     "targetProfitRate": 20.41,
-    "stopLossRate": 9.72,
-    "sells": []
+    "stopLossRate": 9.72
   },
   {
     "id": "h2",
@@ -78,18 +77,17 @@
     "refillDropRate": 8,
     "refillPrice": 974.2,
     "nextStrategy": "长期持有，止盈 25% 减仓",
-    "currentPrice": 1297.41,
-    "prevClose": 1292.01,
-    "lastUpdated": "2026-07-25T04:36:59.135Z",
-    "triggerState": "SELL",
-    "notifiedAt": "2026-07-25T04:36:59.135Z",
+    "currentPrice": null,
+    "prevClose": null,
+    "lastUpdated": null,
+    "triggerState": "IDLE",
+    "notifiedAt": null,
     "cost": 229000,
     "buyQuantity": 1100,
     "lastBuyPrice": 123,
     "avgCost": 208.1818181818182,
     "targetProfitRate": 22.31,
-    "stopLossRate": 9.07,
-    "sells": []
+    "stopLossRate": 9.07
   },
   {
     "id": "hmrp44zx1eigb",
@@ -252,9 +250,9 @@
     "refillDropRate": 4.7,
     "refillPrice": 0,
     "nextStrategy": "",
-    "currentPrice": 1.506,
-    "prevClose": 1.4931,
-    "lastUpdated": "2026-07-28T07:36:03.295Z",
+    "currentPrice": null,
+    "prevClose": null,
+    "lastUpdated": null,
     "triggerState": "IDLE",
     "notifiedAt": null,
     "cost": 32452.448996000003,
@@ -262,8 +260,7 @@
     "lastBuyPrice": 1.6003,
     "avgCost": 2.1138686019426585,
     "targetProfitRate": 26,
-    "stopLossRate": 25.69,
-    "sells": []
+    "stopLossRate": 25.69
   },
   {
     "id": "hmrp5vc7h6kka",
@@ -340,70 +337,6 @@
     "lastBuyPrice": 2.2515,
     "avgCost": 2.0631154886374197,
     "targetProfitRate": 40,
-    "stopLossRate": 30,
-    "sells": []
-  },
-  {
-    "id": "hms40l7lvpkx7",
-    "name": "南方两倍做多海力士",
-    "code": "07709",
-    "status": "持有",
-    "region": "hk",
-    "type": "股票",
-    "strategy": "highrisk",
-    "snapshotDate": "2026-07-28",
-    "snapshotProfit": 0,
-    "snapshotReturnRate": 0,
-    "position": 0,
-    "purchases": [
-      {
-        "id": "pms40mamdqvfb",
-        "buyPrice": 72.24,
-        "buyQuantity": 100,
-        "buyTime": "2026-07-13",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      },
-      {
-        "id": "pms4c996pnol4",
-        "buyPrice": 38.74,
-        "buyQuantity": 100,
-        "buyTime": "2026-07-28",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      },
-      {
-        "id": "pms4cdecbjznf",
-        "buyPrice": 85.68,
-        "buyQuantity": 100,
-        "buyTime": "2026-07-08",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      },
-      {
-        "id": "pms4cduen18k1",
-        "buyPrice": 117.85,
-        "buyQuantity": 100,
-        "buyTime": "2026-07-03",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      }
-    ],
-    "refillDropRate": 28,
-    "refillPrice": 0,
-    "nextStrategy": "",
-    "currentPrice": 41.78,
-    "prevClose": 54.5,
-    "lastUpdated": "2026-07-28T02:37:04.057Z",
-    "triggerState": "IDLE",
-    "notifiedAt": null,
-    "cost": 31451,
-    "buyQuantity": 400,
-    "lastBuyPrice": 38.74,
-    "avgCost": 78.6275,
-    "dailyDropAlertPct": 26,
-    "dailyRiseAlertPct": 15,
-    "dailyAlertSentDate": null,
-    "sells": []
+    "stopLossRate": 30
   }
 ]
