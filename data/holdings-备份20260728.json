@@ -1,5 +1,95 @@
 [
   {
+    "id": "h1",
+    "name": "腾讯控股",
+    "code": "hk00700",
+    "status": "持有",
+    "region": "港股",
+    "type": "股票",
+    "strategy": "long",
+    "snapshotDate": "2025-07-05",
+    "snapshotProfit": 1200.5,
+    "snapshotReturnRate": 3.2,
+    "position": 38000,
+    "purchases": [
+      {
+        "id": "p1a",
+        "buyPrice": 368,
+        "buyQuantity": 100,
+        "buyTime": "2026-07-25",
+        "targetProfitRate": 20.2,
+        "stopLossRate": 9.8
+      },
+      {
+        "id": "p1b",
+        "buyPrice": 210,
+        "buyQuantity": 8,
+        "buyTime": "2026-08-01",
+        "targetProfitRate": 25,
+        "stopLossRate": 8
+      }
+    ],
+    "refillDropRate": 10,
+    "refillPrice": 331.2,
+    "nextStrategy": "若跌至 331 附近分批补仓",
+    "currentPrice": 461.6,
+    "prevClose": 484,
+    "lastUpdated": "2026-07-17T16:45:39.228Z",
+    "triggerState": "IDLE",
+    "notifiedAt": null,
+    "cost": 38480,
+    "buyQuantity": 108,
+    "lastBuyPrice": 210,
+    "avgCost": 356.2962962962963,
+    "targetProfitRate": 20.41,
+    "stopLossRate": 9.72
+  },
+  {
+    "id": "h2",
+    "name": "贵州茅台",
+    "code": "sh600519",
+    "status": "持有",
+    "region": "A股",
+    "type": "股票",
+    "strategy": "long",
+    "snapshotDate": "2025-07-05",
+    "snapshotProfit": 5400,
+    "snapshotReturnRate": 5.1,
+    "position": 110000,
+    "purchases": [
+      {
+        "id": "p2a",
+        "buyPrice": 1060,
+        "buyQuantity": 100,
+        "buyTime": "2025-01-20",
+        "targetProfitRate": 25,
+        "stopLossRate": 8
+      },
+      {
+        "id": "pmrnmpnskwx4i",
+        "buyPrice": 123,
+        "buyQuantity": 1000,
+        "buyTime": "2026-07-16",
+        "targetProfitRate": 20,
+        "stopLossRate": 10
+      }
+    ],
+    "refillDropRate": 8,
+    "refillPrice": 974.2,
+    "nextStrategy": "长期持有，止盈 25% 减仓",
+    "currentPrice": null,
+    "prevClose": null,
+    "lastUpdated": null,
+    "triggerState": "IDLE",
+    "notifiedAt": null,
+    "cost": 229000,
+    "buyQuantity": 1100,
+    "lastBuyPrice": 123,
+    "avgCost": 208.1818181818182,
+    "targetProfitRate": 22.31,
+    "stopLossRate": 9.07
+  },
+  {
     "id": "hmrp44zx1eigb",
     "name": "易方达蓝筹精选混合",
     "code": "005827",
@@ -248,40 +338,5 @@
     "avgCost": 2.0631154886374197,
     "targetProfitRate": 40,
     "stopLossRate": 30
-  },
-  {
-    "id": "hms40l7lvpkx7",
-    "name": "南方两倍做多海力士",
-    "code": "07709",
-    "status": "持有",
-    "region": "hk",
-    "type": "股票",
-    "strategy": "highrisk",
-    "snapshotDate": "2026-07-28",
-    "snapshotProfit": 0,
-    "snapshotReturnRate": 0,
-    "position": 0,
-    "purchases": [
-      {
-        "id": "pms40mamdqvfb",
-        "buyPrice": 72.24,
-        "buyQuantity": 100,
-        "buyTime": "2026-07-13",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      }
-    ],
-    "refillDropRate": 28,
-    "refillPrice": 0,
-    "nextStrategy": "",
-    "currentPrice": null,
-    "prevClose": null,
-    "lastUpdated": null,
-    "triggerState": "IDLE",
-    "notifiedAt": null,
-    "cost": 7223.999999999999,
-    "buyQuantity": 100,
-    "lastBuyPrice": 72.24,
-    "avgCost": 72.24
   }
 ]
