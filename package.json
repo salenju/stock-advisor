@@ -8,7 +8,9 @@
     "start": "node server/index.js",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "import:csv": "node server/import-csv.js",
+    "import:csv:new": "node server/import-csv.js --create-missing"
   },
   "engines": {
     "node": ">=18"

@@ -27,6 +27,21 @@
 
 环境：Node.js >= 18（已验证 v18.20.2）。
 
+### 一键启动（推荐）
+
+```bash
+cd 股票秘书
+# 1. 填入你的飞书机器人 webhook 与 secret（config.json）
+# 2. 启动
+
+./start.sh               # 生产模式 → http://127.0.0.1:3000（后端托管前端 + 行情调度）
+./start.sh dev           # 开发模式 → http://localhost:5173（后端 + Vite HMR，/api 代理到 :3000）
+```
+
+脚本会自动检查 Node.js 版本、安装依赖、构建前端（生产模式），一行命令跑起全部。
+
+### 分步手动操作
+
 ```bash
 cd 股票秘书
 npm install          # 安装前端依赖（vue / vite / tailwind）
@@ -41,6 +56,30 @@ npm start            # 终端 A：后端 + API（:3000）
 npm run dev          # 终端 B：Vite 开发服务器（:5173，/api 代理到 :3000）
 # 开发时浏览器打开 http://localhost:5173
 ```
+
+### 一键导入 CSV 买卖记录
+
+前端页面顶部「**导入 CSV**」按钮即可一键导入：选择 CSV 文件 → 勾选「自动新建持仓」（可选）→ 开始导入，实时展示导入结果。
+
+命令行方式同样可用：
+
+```bash
+npm run import:csv               # 仅导入 CSV 中能匹配到现有持仓的记录
+npm run import:csv:new           # 匹配不到时自动新建持仓（例如小米 1810）
+node server/import-csv.js <csv>  # 导入指定路径的 CSV
+```
+
+CSV 需包含列：`代码`、`操作`（买入/卖出）、`买入日期`、`买入数量`、`买入价`。匹配规则：
+
+1. **精确匹配**：CSV 代码 === `holdings.code`（如 `07709`、`005827`）
+2. **数字归一化**：提取 `holdings.code` 中的数字比对（`hk00700` → `700`）
+
+- 买入 → 追加到该持仓 `purchases[]`（止盈/止损沿用持仓当前值）
+- 卖出 → 追加到 `sells[]`，按 LIFO 自动计算成本均价、盈亏、收益率
+- 导入后自动重算汇总字段（成本、数量、均价、最近买入价、状态）
+- **幂等**：以 `(代码, 操作, 日期, 数量, 价格)` 为唯一键，重复导入自动跳过
+
+> 建议导入前先备份 `data/holdings.json`。已内置：`data/holdings-before-import.json`。
 
 ### 配置（config.json）
 - `schedule.intervalSeconds`：交易时段刷新间隔（默认 20 秒）
@@ -69,6 +108,7 @@ npm run dev          # 终端 B：Vite 开发服务器（:5173，/api 代理到 
 - `GET /api/holdings`：列表（含派生字段 收益率/跌幅）
 - `POST /api/holdings`：新建持仓（买入建仓）
 - `POST /api/holdings/:id/transactions`：对指定持仓追加 `{type:'BUY'|'SELL', price, quantity, date?}` 交易
+- `POST /api/import-csv`：批量导入 CSV 买卖记录，`{csv: string, createMissing?: boolean}`，返回导入统计（新增/忽略/新建持仓/匹配不到/出错）
 - `POST /api/test-feishu`：发送一条测试卡片消息到飞书机器人（前端「测试飞书」按钮调用；需已在 config.json 配置真实 webhook/secret，否则返回 502）
 
 - 技术栈：

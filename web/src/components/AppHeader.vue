@@ -13,7 +13,7 @@ defineProps({
   ringOffset: { type: Number, required: true },
 });
 
-const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add']);
+const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'import-csv']);
 </script>
 
 <template>
@@ -38,6 +38,12 @@ const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add']);
           :title="isDark ? '切换到浅色' : '切换到深色'"
           class="btn btn-ghost btn-circle btn-sm"
         >{{ isDark ? '☀️' : '🌙' }}</button>
+        <button
+          @click="emit('import-csv')"
+          class="btn btn-sm text-white"
+          style="background-color: #f40; border-color: #f40;"
+          title="导入 CSV 买卖记录"
+        >导入 CSV</button>
         <button @click="emit('refresh')" class="btn btn-info btn-sm">刷新</button>
         <button
           @click="emit('test-feishu')"

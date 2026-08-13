@@ -1,5 +1,97 @@
 [
   {
+    "id": "h1",
+    "name": "腾讯控股",
+    "code": "hk00700",
+    "status": "持有",
+    "region": "港股",
+    "type": "股票",
+    "strategy": "long",
+    "snapshotDate": "2025-07-05",
+    "snapshotProfit": 1200.5,
+    "snapshotReturnRate": 3.2,
+    "position": 38000,
+    "purchases": [
+      {
+        "id": "p1a",
+        "buyPrice": 368,
+        "buyQuantity": 100,
+        "buyTime": "2026-07-25",
+        "targetProfitRate": 20.2,
+        "stopLossRate": 9.8
+      },
+      {
+        "id": "p1b",
+        "buyPrice": 210,
+        "buyQuantity": 8,
+        "buyTime": "2026-08-01",
+        "targetProfitRate": 25,
+        "stopLossRate": 8
+      }
+    ],
+    "refillDropRate": 10,
+    "refillPrice": 331.2,
+    "nextStrategy": "若跌至 331 附近分批补仓",
+    "currentPrice": 434.6,
+    "prevClose": 445.2,
+    "lastUpdated": "2026-07-25T04:36:59.135Z",
+    "triggerState": "SELL",
+    "notifiedAt": "2026-07-25T04:36:59.135Z",
+    "cost": 38480,
+    "buyQuantity": 108,
+    "lastBuyPrice": 210,
+    "avgCost": 356.2962962962963,
+    "targetProfitRate": 20.41,
+    "stopLossRate": 9.72,
+    "sells": []
+  },
+  {
+    "id": "h2",
+    "name": "贵州茅台",
+    "code": "sh600519",
+    "status": "持有",
+    "region": "A股",
+    "type": "股票",
+    "strategy": "long",
+    "snapshotDate": "2025-07-05",
+    "snapshotProfit": 5400,
+    "snapshotReturnRate": 5.1,
+    "position": 110000,
+    "purchases": [
+      {
+        "id": "p2a",
+        "buyPrice": 1060,
+        "buyQuantity": 100,
+        "buyTime": "2025-01-20",
+        "targetProfitRate": 25,
+        "stopLossRate": 8
+      },
+      {
+        "id": "pmrnmpnskwx4i",
+        "buyPrice": 123,
+        "buyQuantity": 1000,
+        "buyTime": "2026-07-16",
+        "targetProfitRate": 20,
+        "stopLossRate": 10
+      }
+    ],
+    "refillDropRate": 8,
+    "refillPrice": 974.2,
+    "nextStrategy": "长期持有，止盈 25% 减仓",
+    "currentPrice": 1297.41,
+    "prevClose": 1292.01,
+    "lastUpdated": "2026-07-25T04:36:59.135Z",
+    "triggerState": "SELL",
+    "notifiedAt": "2026-07-25T04:36:59.135Z",
+    "cost": 229000,
+    "buyQuantity": 1100,
+    "lastBuyPrice": 123,
+    "avgCost": 208.1818181818182,
+    "targetProfitRate": 22.31,
+    "stopLossRate": 9.07,
+    "sells": []
+  },
+  {
     "id": "hmrp44zx1eigb",
     "name": "易方达蓝筹精选混合",
     "code": "005827",
@@ -160,11 +252,11 @@
     "refillDropRate": 4.7,
     "refillPrice": 0,
     "nextStrategy": "",
-    "currentPrice": 1.5499,
-    "prevClose": 1.5462,
-    "lastUpdated": "2026-08-13T02:13:03.733Z",
-    "triggerState": "SELL",
-    "notifiedAt": "2026-08-13T01:53:55.196Z",
+    "currentPrice": 1.506,
+    "prevClose": 1.4931,
+    "lastUpdated": "2026-07-28T07:36:03.295Z",
+    "triggerState": "IDLE",
+    "notifiedAt": null,
     "cost": 32452.448996000003,
     "buyQuantity": 15352.159999999998,
     "lastBuyPrice": 1.6003,
@@ -238,9 +330,9 @@
     "refillDropRate": 5,
     "refillPrice": 0,
     "nextStrategy": "",
-    "currentPrice": 2.4573,
-    "prevClose": 2.4464,
-    "lastUpdated": "2026-08-13T02:13:03.733Z",
+    "currentPrice": null,
+    "prevClose": null,
+    "lastUpdated": null,
     "triggerState": "IDLE",
     "notifiedAt": null,
     "cost": 17978.256573,
@@ -262,7 +354,7 @@
     "snapshotDate": "2026-07-28",
     "snapshotProfit": 0,
     "snapshotReturnRate": 0,
-    "position": 38911,
+    "position": 0,
     "purchases": [
       {
         "id": "pms40mamdqvfb",
@@ -295,138 +387,23 @@
         "buyTime": "2026-07-03",
         "targetProfitRate": 0,
         "stopLossRate": 0
-      },
-      {
-        "id": "pmsqv029n4bi7",
-        "buyPrice": 12.24,
-        "buyQuantity": 100,
-        "buyTime": "2026-07-13",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      },
-      {
-        "id": "pmsqv029sseut",
-        "buyPrice": 40.8,
-        "buyQuantity": 200,
-        "buyTime": "2026-08-05",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      },
-      {
-        "id": "pmsqv029svak8",
-        "buyPrice": 28.34,
-        "buyQuantity": 100,
-        "buyTime": "2026-08-07",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      },
-      {
-        "id": "pmsqv029s23bw",
-        "buyPrice": 31.18,
-        "buyQuantity": 200,
-        "buyTime": "2026-08-12",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
       }
     ],
     "refillDropRate": 28,
     "refillPrice": 0,
     "nextStrategy": "",
-    "currentPrice": 35.6,
-    "prevClose": 31.52,
-    "lastUpdated": "2026-08-13T02:13:03.733Z",
+    "currentPrice": 41.78,
+    "prevClose": 54.5,
+    "lastUpdated": "2026-07-28T02:37:04.057Z",
     "triggerState": "IDLE",
     "notifiedAt": null,
-    "cost": 38911,
-    "buyQuantity": 700,
-    "lastBuyPrice": 31.18,
-    "avgCost": 55.58714285714286,
+    "cost": 31451,
+    "buyQuantity": 400,
+    "lastBuyPrice": 38.74,
+    "avgCost": 78.6275,
     "dailyDropAlertPct": 26,
     "dailyRiseAlertPct": 15,
     "dailyAlertSentDate": null,
-    "sells": [
-      {
-        "id": "pmsqv029s5bva",
-        "sellPrice": 38.76,
-        "sellQuantity": 100,
-        "sellDate": "2026-08-05",
-        "costPrice": 40.8,
-        "profit": -203.99999999999991,
-        "returnRate": -4.999999999999998
-      },
-      {
-        "id": "pmsqv029slmy8",
-        "sellPrice": 29.34,
-        "sellQuantity": 200,
-        "sellDate": "2026-08-12",
-        "costPrice": 34.57,
-        "profit": -1046,
-        "returnRate": -15.128724327451549
-      }
-    ],
-    "targetProfitRate": 0,
-    "stopLossRate": 0
-  },
-  {
-    "id": "hmsqv175k9a9e",
-    "name": "小米集团-W",
-    "code": "1810",
-    "status": "持有",
-    "region": "港股",
-    "type": "",
-    "strategy": "",
-    "snapshotDate": "2026-08-13",
-    "snapshotProfit": 0,
-    "snapshotReturnRate": 0,
-    "position": 71584,
-    "purchases": [
-      {
-        "id": "pmsqv175kzpss",
-        "buyPrice": 30.7,
-        "buyQuantity": 1400,
-        "buyTime": "2026-05-05",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      },
-      {
-        "id": "pmsqv175lw0ee",
-        "buyPrice": 31.72,
-        "buyQuantity": 400,
-        "buyTime": "2026-05-11",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      },
-      {
-        "id": "pmsqv175qp6uj",
-        "buyPrice": 23.9,
-        "buyQuantity": 200,
-        "buyTime": "2026-07-03",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      },
-      {
-        "id": "pmsqv175qejk6",
-        "buyPrice": 27.84,
-        "buyQuantity": 400,
-        "buyTime": "2026-07-21",
-        "targetProfitRate": 0,
-        "stopLossRate": 0
-      }
-    ],
-    "sells": [],
-    "refillDropRate": 0,
-    "refillPrice": 0,
-    "nextStrategy": "",
-    "currentPrice": null,
-    "prevClose": null,
-    "lastUpdated": null,
-    "triggerState": "IDLE",
-    "notifiedAt": null,
-    "cost": 71584,
-    "buyQuantity": 2400,
-    "avgCost": 29.826666666666668,
-    "lastBuyPrice": 27.84,
-    "targetProfitRate": 0,
-    "stopLossRate": 0
+    "sells": []
   }
 ]

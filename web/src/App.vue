@@ -10,6 +10,7 @@ import HoldingList from './components/HoldingList.vue';
 import AddHoldingModal from './components/AddHoldingModal.vue';
 import TransactionModal from './components/TransactionModal.vue';
 import BuyRecordModal from './components/BuyRecordModal.vue';
+import ImportCsvModal from './components/ImportCsvModal.vue';
 
 const { isDark, initTheme, toggleTheme } = useTheme();
 const {
@@ -48,6 +49,7 @@ async function testFeishu() {
 const showAdd = ref(false);
 const showTxn = ref(false);
 const showBuy = ref(false);
+const showImport = ref(false);
 const txn = ref({ id: '', name: '', type: 'BUY', price: '', quantity: '', date: '' });
 const buyForm = ref({ id: '', name: '', pid: '', buyPrice: '', buyQuantity: '', buyTime: '', targetProfitRate: '', stopLossRate: '' });
 
@@ -143,6 +145,7 @@ onUnmounted(() => {
       @refresh="refreshNow"
       @test-feishu="testFeishu"
       @add="showAdd = true"
+      @import-csv="showImport = true"
     />
 
     <main class="mx-auto max-w-7xl px-6 py-6">
@@ -188,5 +191,6 @@ onUnmounted(() => {
     <AddHoldingModal :show="showAdd" @close="showAdd = false" />
     <TransactionModal :show="showTxn" :txn="txn" @close="showTxn = false" />
     <BuyRecordModal :show="showBuy" :buy-form="buyForm" @close="showBuy = false" />
+    <ImportCsvModal :show="showImport" @close="showImport = false" />
   </div>
 </template>

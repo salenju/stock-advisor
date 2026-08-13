@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize } from 'node:path';
 import { loadHoldings, saveHoldings } from './store.js';
 import { sendCard } from './notifier.js';
+import { importCsvText } from './import-csv-core.js';
 
 // 投资策略枚举：集中定义，后续新增/修改策略只需在此处增删条目。
 // 每个条目含 value（落盘值）/ label（展示文案）/ cls（标签配色）。
@@ -67,6 +68,16 @@ function readBody(req) {
         reject(new Error('invalid json'));
       }
     });
+    req.on('error', reject);
+  });
+}
+
+// 读取请求原始文本（供 CSV 等非 JSON 载荷使用）
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (c) => (data += c));
+    req.on('end', () => resolve(data));
     req.on('error', reject);
   });
 }
@@ -400,6 +411,27 @@ async function handleApi(req, res, url, cfg) {
   if (req.method === 'GET' && url.pathname === '/api/holdings') {
     const list = await loadHoldings();
     return sendJSON(res, 200, { data: list.map(withDerived) });
+  }
+
+  // 导入 CSV 买卖记录（按「代码」匹配，已有明细忽略，缺失插入）
+  // body: { csv: string, createMissing?: boolean }
+  if (req.method === 'POST' && url.pathname === '/api/import-csv') {
+    const raw = await readRawBody(req);
+    let body = {};
+    if (raw) {
+      try { body = JSON.parse(raw); } catch { /* 忽略，视为空 */ }
+    }
+    const csv = typeof body.csv === 'string' ? body.csv : '';
+    if (!csv.trim()) return sendJSON(res, 400, { error: '缺少 csv 内容' });
+    const list = await loadHoldings();
+    let result;
+    try {
+      result = importCsvText(list, csv, { createMissing: !!body.createMissing });
+    } catch (e) {
+      return sendJSON(res, 400, { error: e.message });
+    }
+    await saveHoldings(list);
+    return sendJSON(res, 200, { data: result });
   }
 
   // 新建持仓（买入建仓）
