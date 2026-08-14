@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: server
+title: 股票秘书服务端（持仓管理/行情调度/策略告警）
+scope:
+    - server/
+source_files: []
+depends_on: []
+related_to:
+    - path: data_and_docs
+    - path: web

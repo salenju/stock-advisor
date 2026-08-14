@@ -1,0 +1,16 @@
+schema_version: 1
+module_path: ""
+title: 股票秘书全栈工程（Stock Secretary）
+scope:
+    - config.json
+    - package.json
+    - pnpm-lock.yaml
+    - start.sh
+    - .gitignore
+    - vite.config.js
+    - tailwind.config.js
+    - postcss.config.js
+    - README.md
+source_files: []
+depends_on: []
+related_to: []

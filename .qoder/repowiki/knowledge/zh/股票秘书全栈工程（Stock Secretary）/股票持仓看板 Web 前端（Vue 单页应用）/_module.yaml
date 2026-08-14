@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: web
+title: 股票持仓看板 Web 前端（Vue 单页应用）
+scope:
+    - web/
+source_files: []
+depends_on: []
+related_to:
+    - path: server

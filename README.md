@@ -40,6 +40,20 @@ cd 股票秘书
 
 脚本会自动检查 Node.js 版本、安装依赖、构建前端（生产模式），一行命令跑起全部。
 
+### 停止服务
+
+```bash
+# 前台启动的服务：直接按 Ctrl+C 即可停止
+
+# 若服务已在后台运行（如终端已关闭），查找并终止进程：
+ps aux | grep "stock-advisor\|server/index.js"
+kill <PID>                     # 替换为实际的进程 ID
+
+# 或在确认无其他同名进程后快速终止：
+pkill -f "stock-advisor"       # 停止所有关联进程（慎用，避免误杀）
+pkill -f "server/index.js"     # 或按脚本名精准停止
+```
+
 ### 分步手动操作
 
 ```bash

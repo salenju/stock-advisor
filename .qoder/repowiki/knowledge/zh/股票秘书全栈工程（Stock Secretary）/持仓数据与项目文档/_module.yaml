@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: data_and_docs
+title: 持仓数据与项目文档
+scope:
+    - data/
+    - docs/
+    - .codebuddy/
+source_files: []
+depends_on: []
+related_to:
+    - path: server

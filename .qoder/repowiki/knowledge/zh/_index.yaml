@@ -1,0 +1,60 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: main
+nodes_managed: true
+exported_at: "2026-08-14T02:37:59Z"
+modules:
+    "":
+        dir_name: 股票秘书全栈工程（Stock Secretary）
+        title: 股票秘书全栈工程（Stock Secretary）
+        scope:
+            - config.json
+            - package.json
+            - pnpm-lock.yaml
+            - start.sh
+            - .gitignore
+            - vite.config.js
+            - tailwind.config.js
+            - postcss.config.js
+            - README.md
+        source_files: []
+        children:
+            - data_and_docs
+            - server
+            - web
+        depends_on: []
+        related_to: []
+    data_and_docs:
+        dir_name: 持仓数据与项目文档
+        title: 持仓数据与项目文档
+        scope:
+            - data/
+            - docs/
+            - .codebuddy/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: server
+    server:
+        dir_name: 股票秘书服务端（持仓管理_行情调度_策略告警）
+        title: 股票秘书服务端（持仓管理/行情调度/策略告警）
+        scope:
+            - server/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: data_and_docs
+            - path: web
+    web:
+        dir_name: 股票持仓看板 Web 前端（Vue 单页应用）
+        title: 股票持仓看板 Web 前端（Vue 单页应用）
+        scope:
+            - web/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: server
