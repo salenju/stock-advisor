@@ -7,6 +7,28 @@ const lastUpdated = ref('');
 const loading = ref(false);
 const error = ref('');
 
+// 汇率配置（来自后端 /api/holdings 的 fx.rates，前端不抓汇率，直接用后端配置值）
+const fxRates = ref({ CNY: 1 });
+
+// 与 server/provider/fx.js 内置值一致的兜底汇率
+const DEFAULT_RATES = { CNY: 1, USD: 7.0, HKD: 0.9 };
+
+// 取汇率（含兜底）
+function rates() {
+  const r = fxRates.value || {};
+  return {
+    CNY: 1,
+    USD: Number(r.USD) > 0 ? Number(r.USD) : DEFAULT_RATES.USD,
+    HKD: Number(r.HKD) > 0 ? Number(r.HKD) : DEFAULT_RATES.HKD,
+  };
+}
+
+// 单笔金额按币种换算人民币（null/非法按 0）
+function fxToCNY(v, currency) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n * (rates()[currency] || 1) : 0;
+}
+
 // 自动刷新倒计时（秒）
 const countdown = ref(REFRESH_MS / 1000);
 
@@ -19,6 +41,7 @@ async function fetchHoldings() {
     const res = await fetch('/api/holdings');
     const json = await res.json();
     holdings.value = json.data || [];
+    if (json.fx?.rates) fxRates.value = json.fx.rates;
     lastUpdated.value = new Date().toLocaleTimeString('zh-CN');
     countdown.value = REFRESH_MS / 1000; // 刷新后重置倒计时
   } catch (e) {
@@ -49,19 +72,35 @@ function stopAutoRefresh() {
   }
 }
 
-// ---------- 概览汇总 ----------
+// ---------- 概览汇总（全部按汇率换算成人民币） ----------
 const totalCost = computed(() =>
-  holdings.value.reduce((s, h) => s + (Number(h.cost) || 0), 0)
+  holdings.value.reduce((s, h) => s + fxToCNY(h.cost, h.currency), 0)
 );
 const totalMarket = computed(() =>
-  holdings.value.reduce((s, h) => s + (h.marketValue != null ? Number(h.marketValue) : 0), 0)
+  holdings.value.reduce((s, h) => s + fxToCNY(h.marketValue, h.currency), 0)
 );
 const totalHoldingProfit = computed(() =>
-  holdings.value.reduce((s, h) => s + (h.holdingProfit != null ? Number(h.holdingProfit) : 0), 0)
+  holdings.value.reduce((s, h) => s + fxToCNY(h.holdingProfit, h.currency), 0)
 );
 const totalTodayProfit = computed(() =>
-  holdings.value.reduce((s, h) => s + (h.todayProfit != null ? Number(h.todayProfit) : 0), 0)
+  holdings.value.reduce((s, h) => s + fxToCNY(h.todayProfit, h.currency), 0)
 );
+
+// ---------- 按币种小计（供概览卡片 tip 弹层展示） ----------
+function breakdownByCurrency(key) {
+  const by = {};
+  for (const h of holdings.value) {
+    const v = Number(h[key]);
+    if (h[key] == null || !Number.isFinite(v)) continue;
+    const c = h.currency || 'CNY';
+    by[c] = (by[c] || 0) + v;
+  }
+  return by;
+}
+const costByCurrency = computed(() => breakdownByCurrency('cost'));
+const marketByCurrency = computed(() => breakdownByCurrency('marketValue'));
+const todayProfitByCurrency = computed(() => breakdownByCurrency('todayProfit'));
+const holdingProfitByCurrency = computed(() => breakdownByCurrency('holdingProfit'));
 
 // ---------- 写操作：统一 fetch 后刷新列表 ----------
 async function addHolding(b) {
@@ -136,10 +175,15 @@ export function useHoldings() {
     loading,
     error,
     countdown,
+    fxRates,
     totalCost,
     totalMarket,
     totalHoldingProfit,
     totalTodayProfit,
+    costByCurrency,
+    marketByCurrency,
+    todayProfitByCurrency,
+    holdingProfitByCurrency,
     fetchHoldings,
     refreshNow,
     startAutoRefresh,

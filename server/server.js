@@ -5,6 +5,9 @@ import { dirname, join, extname, normalize } from 'node:path';
 import { loadHoldings, saveHoldings } from './store.js';
 import { sendCard } from './notifier.js';
 import { importCsvText } from './import-csv-core.js';
+import { currencyOf, currencyCode } from './currency.js';
+import { getRates } from './provider/fx.js';
+import { buildTrend, filterByDays } from './trend.js';
 
 // 投资策略枚举：集中定义，后续新增/修改策略只需在此处增删条目。
 // 每个条目含 value（落盘值）/ label（展示文案）/ cls（标签配色）。
@@ -147,6 +150,7 @@ function deriveSell(s) {
 function withDerived(h) {
   const price = h.currentPrice;
   const prevClose = h.prevClose;
+  const currency = currencyOf(h.region); // 按地区映射币种（A股人民币/港股港币/美股美元）
 
   const purchases = (h.purchases || [])
     .map((p) => derivePurchase(p, price))
@@ -222,6 +226,8 @@ function withDerived(h) {
 
   return {
     ...h,
+    currency,                          // CNY / HKD / USD（按地区映射）
+    currencyCode: currencyCode(currency),
     purchases,
     transactions,                    // 前端表用此字段展示（含买入+卖出）
     cost: remainingCost,
@@ -407,10 +413,33 @@ function applyTransaction(h, txn) {
 }
 
 async function handleApi(req, res, url, cfg) {
-  // 列表
+  // 列表（含币种字段与汇率配置）
   if (req.method === 'GET' && url.pathname === '/api/holdings') {
     const list = await loadHoldings();
-    return sendJSON(res, 200, { data: list.map(withDerived) });
+    return sendJSON(res, 200, {
+      data: list.map(withDerived),
+      fx: { rates: getRates(cfg), source: 'config/env' },
+    });
+  }
+
+  // 收益趋势（逐日重放计算，历史收盘价来自腾讯K线/东财净值，按配置汇率折算人民币）
+  // range: day(今天) | 7d(近7天) | 30d(近30天) | all(全部)
+  if (req.method === 'GET' && url.pathname === '/api/trend') {
+    const range = url.searchParams.get('range') || '30d';
+    const days = { day: 2, '7d': 7, '30d': 30, all: 0 }[range] ?? 30;
+    const list = await loadHoldings();
+    const active = list.filter((h) => h.status === '持有');
+    const series = await buildTrend(active, cfg);
+    const filtered = filterByDays(
+      series.dates, series.holdingProfit, series.todayProfit, series.marketValue, days
+    );
+    return sendJSON(res, 200, {
+      ...filtered,
+      currency: 'CNY',
+      rates: series.rates,
+      skipped: series.skipped,
+      range,
+    });
   }
 
   // 导入 CSV 买卖记录（按「代码」匹配，已有明细忽略，缺失插入）

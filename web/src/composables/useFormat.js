@@ -48,15 +48,24 @@ export function triggerBadge(state) {
   return { text: state, cls: 'badge badge-info' };
 }
 
+// 地区别名 → 规范前缀（兼容 CSV 导入的历史中文标签：港股/美股/沪/深/A股）
+const REGION_ALIAS = {
+  hk: 'hk', 港股: 'hk', 港: 'hk',
+  us: 'us', 美股: 'us', 美: 'us',
+  sh: 'sh', 沪: 'sh', A股: 'sh',
+  sz: 'sz', 深: 'sz',
+};
+
 // 地区徽章：仅使用规范色，不出现派生色
 export function regionBadge(region) {
+  const key = REGION_ALIAS[region] || region;
   const map = {
     hk: { text: '港股', cls: 'badge badge-warning' },
     us: { text: '美股', cls: 'badge badge-info' },
     sh: { text: 'A股', cls: 'badge badge-primary' },
     sz: { text: 'A股', cls: 'badge badge-success' },
   };
-  return map[region] || { text: REGION_LABEL[region] || region, cls: 'badge badge-info' };
+  return map[key] || { text: REGION_LABEL[key] || region, cls: 'badge badge-info' };
 }
 
 export function strategyBadge(s) {

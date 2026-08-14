@@ -14,5 +14,8 @@
   "notify": {
     "cooldownSeconds": 3600,
     "nearThresholdPct": 2
+  },
+  "fx": {
+    "rates": { "USD_CNY": 7.0, "HKD_CNY": 0.9 }
   }
 }

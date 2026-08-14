@@ -10,6 +10,14 @@ export default defineConfig({
   build: {
     outDir: '../dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // echarts 体积大且独立，单独拆包，避免阻塞首屏
+          echarts: ['echarts/core', 'echarts/charts', 'echarts/components', 'echarts/renderers'],
+        },
+      },
+    },
   },
   server: {
     // host: true 绑定 0.0.0.0，支持通过本机 IP（局域网）访问，启动日志会打印 Network 地址

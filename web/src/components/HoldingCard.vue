@@ -57,7 +57,7 @@ async function saveAlert() {
 <template>
   <div class="overflow-hidden rounded-xl border border-base-300 bg-base-100">
     <!-- 卡片头：汇总信息 -->
-    <div class="flex flex-wrap items-center justify-between gap-3 p-4">
+    <div class="flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:p-4">
       <div class="flex items-center gap-3">
         <button
           @click="toggleExpand"
@@ -88,26 +88,26 @@ async function saveAlert() {
       </div>
     </div>
 
-    <!-- 汇总指标 -->
-    <div class="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-base-300 px-4 py-4 sm:grid-cols-4 lg:grid-cols-7">
-      <div>
+    <!-- 汇总指标：极窄屏(<360px)单列，常规手机双列，桌面自适应 -->
+    <div class="grid grid-cols-1 gap-x-3 gap-y-3 border-t border-base-300 px-3 py-3 min-[360px]:grid-cols-2 sm:grid-cols-4 sm:gap-x-4 sm:px-4 sm:py-4 lg:grid-cols-7">
+      <div class="min-w-0">
         <div class="text-xs opacity-60">市值 / 数量</div>
-        <div class="mt-0.5 tabular-nums">{{ fmtMoney(holding.marketValue) }} <span class="opacity-40">/</span> {{ fmtQty(holding.buyQuantity) }}</div>
+        <div class="mt-0.5 truncate text-xs tabular-nums sm:text-sm">{{ holding.currencyCode }} {{ fmtMoney(holding.marketValue) }} <span class="opacity-40">/</span> {{ fmtQty(holding.buyQuantity) }}</div>
       </div>
-      <div>
+      <div class="min-w-0">
         <div class="text-xs opacity-60">成本 / 现价</div>
-        <div class="mt-0.5 tabular-nums">{{ fmtPrice(holding.avgCost) }} <span class="opacity-40">/</span> {{ fmtPrice(holding.currentPrice) }}</div>
+        <div class="mt-0.5 truncate text-xs tabular-nums sm:text-sm">{{ holding.currencyCode }} {{ fmtPrice(holding.avgCost) }} <span class="opacity-40">/</span> {{ fmtPrice(holding.currentPrice) }}</div>
       </div>
-      <div>
+      <div class="min-w-0">
         <div class="text-xs opacity-60">今日收益 / 收益率</div>
-        <div class="mt-0.5 tabular-nums font-medium" :class="profitCls(holding.todayProfit)">
-          {{ fmtMoney(holding.todayProfit) }} <span class="opacity-40">/</span> {{ fmtPct(holding.todayReturnRate) }}
+        <div class="mt-0.5 truncate text-xs tabular-nums font-medium sm:text-sm" :class="profitCls(holding.todayProfit)">
+          {{ holding.currencyCode }} {{ fmtMoney(holding.todayProfit) }} <span class="opacity-40">/</span> {{ fmtPct(holding.todayReturnRate) }}
         </div>
       </div>
-      <div>
+      <div class="min-w-0">
         <div class="text-xs opacity-60">持仓收益 / 收益率</div>
-        <div class="mt-0.5 tabular-nums font-medium" :class="profitCls(holding.holdingProfit)">
-          {{ fmtMoney(holding.holdingProfit) }} <span class="opacity-40">/</span> {{ fmtPct(holding.holdingReturnRate) }}
+        <div class="mt-0.5 truncate text-xs tabular-nums font-medium sm:text-sm" :class="profitCls(holding.holdingProfit)">
+          {{ holding.currencyCode }} {{ fmtMoney(holding.holdingProfit) }} <span class="opacity-40">/</span> {{ fmtPct(holding.holdingReturnRate) }}
         </div>
       </div>
       <div>
@@ -123,7 +123,7 @@ async function saveAlert() {
         <div class="mt-0.5 tabular-nums">
           <span :class="profitCls(1)">-{{ fmt(holding.refillDropRate) }}%</span>
           <span class="opacity-40"> &nbsp;/&nbsp; </span>
-          {{ fmtPrice(holding.refillPrice) }}
+          {{ holding.currencyCode }} {{ fmtPrice(holding.refillPrice) }}
         </div>
       </div>
       <div>

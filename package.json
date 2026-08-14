@@ -10,13 +10,15 @@
     "build": "vite build",
     "preview": "vite preview",
     "import:csv": "node server/import-csv.js",
-    "import:csv:new": "node server/import-csv.js --create-missing"
+    "import:csv:new": "node server/import-csv.js --create-missing",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
   },
   "license": "MIT",
   "dependencies": {
+    "echarts": "^6.1.0",
     "vue": "^3.4.0"
   },
   "devDependencies": {

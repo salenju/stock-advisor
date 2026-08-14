@@ -101,6 +101,23 @@ CSV 需包含列：`代码`、`操作`（买入/卖出）、`买入日期`、`�
 - `feishu.webhook` / `feishu.secret`：飞书自定义机器人地址与签名密钥（已启用 secret）
 - `notify.cooldownSeconds`：同一品种提醒冷却（默认 3600 秒，防刷屏）
 - `notify.nearThresholdPct`：距阈值多近算"快达到"（默认 2%）
+- `fx.rates`：币种 → 人民币汇率（默认 `USD_CNY=7.0`、`HKD_CNY=0.9`，汇率变化不大，无需频繁更新）
+
+### 汇率配置（环境变量优先）
+概览金额按币种拆分、统一折算人民币展示。汇率取值优先级：
+1. 环境变量：`FX_USD_CNY`、`FX_HKD_CNY`（如 `FX_USD_CNY=7.15 node server/index.js`）
+2. `config.json` 的 `fx.rates`
+3. 内置默认值
+
+> 历史收益趋势同样按该汇率折算（v1 约定：历史点同用当前汇率，不做逐日汇率回溯）。
+
+### 自动化测试
+
+```bash
+npm test        # node:test 单元 + 集成测试（28 项）
+```
+
+覆盖：行情代码规范化/解析、币种换算与分币种汇总、收益趋势逐日重放算法、CSV 导入匹配与幂等、真实 HTTP 接口（K线/净值打桩）。手动 UI 检查清单见 `docs/自测清单.md`。
 
 ### 目录
 - `server/provider/tencent.js`：腾讯财经行情（免 Key，批量，覆盖 A股/港股/美股）
@@ -119,7 +136,8 @@ CSV 需包含列：`代码`、`操作`（买入/卖出）、`买入日期`、`�
 - 每行「买入 / 卖出」按钮，对已有持仓追加交易（自动重算成本、数量、最近买入价、状态）
 
 ### REST 接口
-- `GET /api/holdings`：列表（含派生字段 收益率/跌幅）
+- `GET /api/holdings`：列表（含派生字段 收益率/跌幅、币种 `currency`/`currencyCode`），响应顶层附 `fx.rates`（汇率配置）
+- `GET /api/trend?range=day|7d|30d|all`：收益趋势（历史收盘价来自腾讯K线/东财净值，按配置汇率折算人民币），返回 `{dates, holdingProfit, todayProfit, marketValue, currency:'CNY', rates, skipped}`
 - `POST /api/holdings`：新建持仓（买入建仓）
 - `POST /api/holdings/:id/transactions`：对指定持仓追加 `{type:'BUY'|'SELL', price, quantity, date?}` 交易
 - `POST /api/import-csv`：批量导入 CSV 买卖记录，`{csv: string, createMissing?: boolean}`，返回导入统计（新增/忽略/新建持仓/匹配不到/出错）

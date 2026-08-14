@@ -22,9 +22,10 @@ export function parseCsvText(text) {
   });
 }
 
-// 从代码中提取数字部分（用于归一化匹配）
+// 从代码中提取数字部分（用于归一化匹配）：去前缀字母、去前导零（01810→1810、hk00700→700）
 function digitsOf(code) {
-  return String(code || '').replace(/\D/g, '');
+  const d = String(code || '').replace(/\D/g, '');
+  return d.replace(/^0+(?=\d)/, '') || d;
 }
 
 // 日期归一化为 YYYY-MM-DD（补前导零），保证幂等匹配时格式一致

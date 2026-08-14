@@ -1,5 +1,5 @@
 import { loadHoldings, saveHoldings } from './store.js';
-import { fetchPrices } from './provider/tencent.js';
+import { fetchPrices, toTencentCode, normalizeRegion } from './provider/tencent.js';
 import { fetchFundNavs } from './provider/fund.js';
 import { evaluate } from './strategy.js';
 import { sendCard } from './notifier.js';
@@ -36,6 +36,7 @@ function inRange(h, m, sH, sM, eH, eM) {
 
 // 判断某市场此刻是否处于交易时段（简化：未含法定节假日）
 function isMarketOpen(region, date) {
+  region = normalizeRegion(region); // 兼容中文地区标签（港股→hk 等）
   const { isWeekend, h, m } = marketLocal(date, REGION_TZ[region]);
   if (isWeekend) return false;
   if (region === 'sh' || region === 'sz')
@@ -71,7 +72,7 @@ export async function runOnce(cfg) {
 
   // 按类型分流：基金走东方财富净值 API，股票走腾讯行情 API
   const isFund = (h) => h.type && h.type.includes('基金');
-  const stockCodes = active.filter((h) => !isFund(h)).map((h) => h.region + h.code);
+  const stockCodes = active.filter((h) => !isFund(h)).map((h) => toTencentCode(h.region, h.code));
   const fundCodes = active.filter((h) => isFund(h)).map((h) => h.code);
 
   const [stockPrices, fundPrices] = await Promise.all([
@@ -88,7 +89,7 @@ export async function runOnce(cfg) {
 
   let changed = false;
   for (const h of active) {
-    const key = isFund(h) ? h.code : h.region + h.code;
+    const key = isFund(h) ? h.code : toTencentCode(h.region, h.code);
     const q = prices[key];
     if (!q || q.price == null) {
       console.warn(`[skip] ${h.code} 无行情`);

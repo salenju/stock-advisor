@@ -6,6 +6,7 @@ import { useHoldings } from './composables/useHoldings.js';
 
 import AppHeader from './components/AppHeader.vue';
 import OverviewCards from './components/OverviewCards.vue';
+import TrendPanel from './components/TrendPanel.vue';
 import HoldingList from './components/HoldingList.vue';
 import AddHoldingModal from './components/AddHoldingModal.vue';
 import TransactionModal from './components/TransactionModal.vue';
@@ -15,7 +16,9 @@ import ImportCsvModal from './components/ImportCsvModal.vue';
 const { isDark, initTheme, toggleTheme } = useTheme();
 const {
   holdings, lastUpdated, loading, error, countdown,
+  fxRates,
   totalCost, totalMarket, totalHoldingProfit, totalTodayProfit,
+  costByCurrency, marketByCurrency, todayProfitByCurrency, holdingProfitByCurrency,
   fetchHoldings, refreshNow, startAutoRefresh, stopAutoRefresh, deletePurchase,
 } = useHoldings();
 
@@ -148,14 +151,21 @@ onUnmounted(() => {
       @import-csv="showImport = true"
     />
 
-    <main class="mx-auto max-w-7xl px-6 py-6">
+    <main class="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6">
       <OverviewCards
         :count="filteredHoldings.length"
         :total-cost="totalCost"
         :total-market="totalMarket"
         :total-today-profit="totalTodayProfit"
         :total-holding-profit="totalHoldingProfit"
+        :cost-by-currency="costByCurrency"
+        :market-by-currency="marketByCurrency"
+        :today-profit-by-currency="todayProfitByCurrency"
+        :holding-profit-by-currency="holdingProfitByCurrency"
+        :fx-rates="fxRates"
       />
+
+      <TrendPanel :is-dark="isDark" />
 
       <!-- 多选标签过滤 -->
       <div class="mb-4 flex flex-wrap items-center gap-2">
