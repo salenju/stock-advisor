@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: main
 nodes_managed: true
-exported_at: "2026-08-14T09:00:49Z"
+exported_at: "2026-08-16T01:36:10Z"
 modules:
     "":
-        dir_name: 股票秘书全栈工程（Stock Secretary）
-        title: 股票秘书全栈工程（Stock Secretary）
+        dir_name: 股票秘书单仓编排（Node 后端 + Vue3 前端 + 数据文档）
+        title: 股票秘书单仓编排（Node 后端 + Vue3 前端 + 数据文档）
         scope:
             - config.json
             - package.json
@@ -38,8 +38,8 @@ modules:
         related_to:
             - path: server
     server:
-        dir_name: 股票秘书服务端（持仓管理_行情调度_策略告警）
-        title: 股票秘书服务端（持仓管理/行情调度/策略告警）
+        dir_name: 股票秘书后端服务（持仓管理与行情调度）
+        title: 股票秘书后端服务（持仓管理与行情调度）
         scope:
             - server/
         source_files: []
@@ -49,8 +49,8 @@ modules:
             - path: data_and_docs
             - path: web
     web:
-        dir_name: 股票持仓看板 Web 前端（Vue 单页应用）
-        title: 股票持仓看板 Web 前端（Vue 单页应用）
+        dir_name: 持仓看板前端（Vue 3 + Vite SPA）
+        title: 持仓看板前端（Vue 3 + Vite SPA）
         scope:
             - web/
         source_files: []

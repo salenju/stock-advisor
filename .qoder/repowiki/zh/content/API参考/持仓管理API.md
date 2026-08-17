@@ -5,10 +5,19 @@
 - [server/server.js](file://server/server.js)
 - [server/store.js](file://server/store.js)
 - [server/strategy.js](file://server/strategy.js)
+- [server/currency.js](file://server/currency.js)
+- [server/provider/fx.js](file://server/provider/fx.js)
 - [data/holdings.json](file://data/holdings.json)
 - [config.json](file://config.json)
 - [web/src/composables/useHoldings.js](file://web/src/composables/useHoldings.js)
 </cite>
+
+## 更新摘要
+**变更内容**
+- 更新了 /api/holdings 端点响应格式，新增多币种支持
+- 添加了 currency 和 currencyCode 字段到每个持仓对象
+- 在响应中增加了 fx.rates 汇率配置信息
+- 增强了持仓数据的货币信息处理能力
 
 ## 目录
 1. [简介](#简介)
@@ -23,8 +32,8 @@
 10. [附录：数据模型与字段说明](#附录数据模型与字段说明)
 
 ## 简介
-本文件为 Stock Advisor 的“持仓管理”后端 API 文档，覆盖所有与持仓相关的 HTTP 端点，包括：
-- GET /api/holdings：获取持仓列表（含派生计算字段）
+本文件为 Stock Advisor 的"持仓管理"后端 API 文档，覆盖所有与持仓相关的 HTTP 端点，包括：
+- GET /api/holdings：获取持仓列表（含派生计算字段和多币种支持）
 - POST /api/holdings：创建新持仓（支持一次性录入多条买入记录）
 - PATCH /api/holdings/:id：更新持仓级配置（如日涨跌告警阈值等）
 - POST /api/holdings/:id/purchases：追加买入记录
@@ -36,6 +45,8 @@
 
 每个接口均提供请求方法、URL 模式、参数说明、响应格式、成功与错误示例，并附带数据模型、状态管理与策略配置的详细说明。
 
+**更新** 现在 /api/holdings 端点返回增强版的持仓数据，包含货币信息和当前汇率，支持多币种投资组合管理。
+
 ## 项目结构
 后端采用 Node.js 原生 http 模块实现路由与业务逻辑，数据持久化到 data/holdings.json，前端通过 Vue 组合式函数调用这些接口。
 
@@ -44,13 +55,17 @@ graph TB
 Client["客户端/前端"] --> Server["HTTP 服务器<br/>server/server.js"]
 Server --> Store["存储层<br/>server/store.js"]
 Server --> Strategy["策略引擎<br/>server/strategy.js"]
+Server --> Currency["货币处理<br/>server/currency.js"]
+Server --> FXProvider["汇率提供商<br/>server/provider/fx.js"]
 Store --> DataFile["数据文件<br/>data/holdings.json"]
 Server --> Notifier["通知器<br/>notifier.js(外部)"]
 ```
 
-图表来源
+**图表来源**
 - [server/server.js:567-594](file://server/server.js#L567-L594)
 - [server/store.js:40-70](file://server/store.js#L40-L70)
+- [server/currency.js:1-49](file://server/currency.js#L1-L49)
+- [server/provider/fx.js:1-23](file://server/provider/fx.js#L1-L23)
 
 章节来源
 - [server/server.js:1-100](file://server/server.js#L1-L100)
@@ -60,12 +75,16 @@ Server --> Notifier["通知器<br/>notifier.js(外部)"]
 - 路由与处理器：集中处理 /api/* 请求，解析 JSON 体，调用业务函数，返回标准 JSON。
 - 存储层：内存缓存 + 串行写盘，避免并发冲突；首次加载或文件被外部修改时重新读盘。
 - 策略引擎：基于多次买入记录评估止盈/止损与补仓信号，供调度器使用。
-- 数据模型：持仓对象包含基本信息、多次买入记录、卖出记录、派生计算字段、策略与告警配置。
+- 货币处理：根据地区自动映射币种（A股人民币/港股港币/美股美元），并提供汇率换算功能。
+- 数据模型：持仓对象包含基本信息、多次买入记录、卖出记录、派生计算字段、策略与告警配置，以及多币种支持。
+
+**更新** 新增了货币处理和汇率功能，支持跨市场投资组合的统一管理和展示。
 
 章节来源
 - [server/server.js:409-565](file://server/server.js#L409-L565)
 - [server/store.js:40-70](file://server/store.js#L40-L70)
 - [server/strategy.js:34-90](file://server/strategy.js#L34-L90)
+- [server/currency.js:1-49](file://server/currency.js#L1-L49)
 
 ## 架构总览
 ```mermaid
@@ -73,19 +92,26 @@ sequenceDiagram
 participant C as "客户端"
 participant S as "HTTP 服务器"
 participant ST as "存储层"
+participant CU as "货币处理"
+participant FX as "汇率提供商"
 participant D as "数据文件"
 C->>S : GET /api/holdings
 S->>ST : loadHoldings()
 ST->>D : 读取 holdings.json
 D-->>ST : 原始数组
 ST-->>S : 内存缓存数组
-S->>S : withDerived() 计算派生字段
-S-->>C : { data : [...] }
+S->>CU : withDerived() 计算派生字段
+CU->>FX : getRates(cfg) 获取汇率
+FX-->>CU : { CNY : 1, USD : 7.0, HKD : 0.9 }
+CU-->>S : 带货币信息的持仓数据
+S-->>C : { data : [...], fx : {...} }
 ```
 
-图表来源
-- [server/server.js:410-414](file://server/server.js#L410-L414)
+**图表来源**
+- [server/server.js:410-423](file://server/server.js#L410-L423)
 - [server/store.js:40-58](file://server/store.js#L40-L58)
+- [server/currency.js:8-17](file://server/currency.js#L8-L17)
+- [server/provider/fx.js:18-23](file://server/provider/fx.js#L18-L23)
 
 ## 详细接口说明
 
@@ -100,13 +126,16 @@ S-->>C : { data : [...] }
 - URL：/api/holdings
 - 请求体：无
 - 响应：
-  - 200：{ data: Array<HoldingWithDerived> }
+  - 200：{ data: Array<HoldingWithDerived>, fx: { rates: Object, source: string } }
   - 500：{ error: "..." }
-- 说明：返回所有持仓，并对每条持仓应用 withDerived 计算派生字段（成本、市值、收益、今日盈亏、均价、最近买入价、目标/止损加权值等）。
+- 说明：返回所有持仓，并对每条持仓应用 withDerived 计算派生字段（成本、市值、收益、今日盈亏、均价、最近买入价、目标/止损加权值等）。**新增**：每个持仓对象现在包含 currency（币种代码）和 currencyCode（显示代码）字段，响应中还包含 fx.rates 汇率配置。
+
+**更新** 响应格式已增强，现在包含多币种支持信息。
 
 章节来源
-- [server/server.js:410-414](file://server/server.js#L410-L414)
-- [server/server.js:146-245](file://server/server.js#L146-L245)
+- [server/server.js:417-423](file://server/server.js#L417-L423)
+- [server/server.js:150-251](file://server/server.js#L150-L251)
+- [server/currency.js:8-17](file://server/currency.js#L8-L17)
 
 ### 2) 创建新持仓（买入建仓）
 - 方法：POST
@@ -124,9 +153,8 @@ S-->>C : { data : [...] }
   - 保存后返回带派生字段的完整持仓
 
 章节来源
-- [server/server.js:302-344](file://server/server.js#L302-L344)
-- [server/server.js:437-450](file://server/server.js#L437-L450)
-- [server/server.js:286-300](file://server/server.js#L286-L300)
+- [server/server.js:467-479](file://server/server.js#L467-L479)
+- [server/server.js:308-350](file://server/server.js#L308-L350)
 
 ### 3) 更新持仓级配置（日涨跌告警阈值等）
 - 方法：PATCH
@@ -143,7 +171,7 @@ S-->>C : { data : [...] }
   - 重置 dailyAlertSentDate，使下次触发立即推送
 
 章节来源
-- [server/server.js:452-465](file://server/server.js#L452-L465)
+- [server/server.js:482-494](file://server/server.js#L482-L494)
 
 ### 4) 追加买入记录
 - 方法：POST
@@ -164,9 +192,9 @@ S-->>C : { data : [...] }
   - 重置 triggerState 与 notifiedAt
 
 章节来源
-- [server/server.js:467-488](file://server/server.js#L467-L488)
-- [server/server.js:286-300](file://server/server.js#L286-L300)
-- [server/server.js:247-284](file://server/server.js#L247-L284)
+- [server/server.js:497-517](file://server/server.js#L497-L517)
+- [server/server.js:292-306](file://server/server.js#L292-L306)
+- [server/server.js:253-290](file://server/server.js#L253-L290)
 
 ### 5) 修改某条买入记录（止盈/止损比例、价格、数量、时间）
 - 方法：PATCH
@@ -182,8 +210,8 @@ S-->>C : { data : [...] }
   - 同步更新汇总字段
 
 章节来源
-- [server/server.js:490-513](file://server/server.js#L490-L513)
-- [server/server.js:247-284](file://server/server.js#L247-L284)
+- [server/server.js:520-542](file://server/server.js#L520-L542)
+- [server/server.js:253-290](file://server/server.js#L253-L290)
 
 ### 6) 删除某条买入记录
 - 方法：DELETE
@@ -194,10 +222,10 @@ S-->>C : { data : [...] }
   - 404：{ error: "持仓不存在" | "买入记录不存在" }
 - 行为：
   - 删除指定买入记录
-  - 若该持仓无剩余买入记录，status 置为“已卖出”
+  - 若该持仓无剩余买入记录，status 置为"已卖出"
 
 章节来源
-- [server/server.js:515-527](file://server/server.js#L515-L527)
+- [server/server.js:545-556](file://server/server.js#L545-L556)
 
 ### 7) 提交交易（兼容旧接口）
 - 方法：POST
@@ -213,13 +241,13 @@ S-->>C : { data : [...] }
   - 400：{ error: "quantity / price 必须为正" | "卖出数量超过持仓数量" | "type 必须为 BUY 或 SELL" }
   - 404：{ error: "持仓不存在" }
 - 行为：
-  - BUY：新增买入记录，status 置为“持有”
-  - SELL：新增卖出记录，按 LIFO 计算成本，更新 status 为“全部卖出”或“持有”
+  - BUY：新增买入记录，status 置为"持有"
+  - SELL：新增卖出记录，按 LIFO 计算成本，更新 status 为"全部卖出"或"持有"
   - 同步更新汇总字段，重置触发态
 
 章节来源
-- [server/server.js:346-407](file://server/server.js#L346-L407)
-- [server/server.js:529-543](file://server/server.js#L529-L543)
+- [server/server.js:352-413](file://server/server.js#L352-L413)
+- [server/server.js:559-572](file://server/server.js#L559-L572)
 
 ### 8) 批量导入 CSV 买卖记录
 - 方法：POST
@@ -236,7 +264,7 @@ S-->>C : { data : [...] }
   - 可自动创建缺失持仓（createMissing=true）
 
 章节来源
-- [server/server.js:416-435](file://server/server.js#L416-L435)
+- [server/server.js:447-464](file://server/server.js#L447-L464)
 - [server/import-csv-core.js:130-156](file://server/import-csv-core.js#L130-L156)
 - [server/import-csv-core.js:170-247](file://server/import-csv-core.js#L170-L247)
 
@@ -250,20 +278,24 @@ S-->>C : { data : [...] }
 - 用途：验证飞书机器人是否正常
 
 章节来源
-- [server/server.js:545-562](file://server/server.js#L545-L562)
+- [server/server.js:575-591](file://server/server.js#L575-L591)
 
 ## 依赖关系分析
 ```mermaid
 graph LR
 A["server/server.js"] --> B["server/store.js"]
 A --> C["server/strategy.js"]
-B --> D["data/holdings.json"]
-E["web/src/composables/useHoldings.js"] --> A
+A --> D["server/currency.js"]
+A --> E["server/provider/fx.js"]
+B --> F["data/holdings.json"]
+G["web/src/composables/useHoldings.js"] --> A
 ```
 
-图表来源
+**图表来源**
 - [server/server.js:567-594](file://server/server.js#L567-L594)
 - [server/store.js:40-70](file://server/store.js#L40-L70)
+- [server/currency.js:1-49](file://server/currency.js#L1-L49)
+- [server/provider/fx.js:1-23](file://server/provider/fx.js#L1-L23)
 - [web/src/composables/useHoldings.js:15-29](file://web/src/composables/useHoldings.js#L15-L29)
 
 章节来源
@@ -275,6 +307,7 @@ E["web/src/composables/useHoldings.js"] --> A
 - 内存缓存：loadHoldings 仅在首次或文件 mtime 变化时重读磁盘，减少 I/O。
 - 串行写盘：saveHoldings 使用 Promise 链串行写入，避免并发覆盖。
 - 派生计算：withDerived 在每次返回列表时计算，保证前端展示一致。
+- 汇率缓存：汇率配置从配置源获取，避免频繁网络请求。
 - 建议：
   - 高频更新场景下，尽量合并请求（如批量导入）
   - 合理设置刷新间隔，避免频繁拉取
@@ -288,13 +321,19 @@ E["web/src/composables/useHoldings.js"] --> A
 - 500 错误：查看服务端日志，定位异常堆栈
 - 502 错误：检查飞书 webhook 与 secret 配置是否正确
 - 数据不一致：确认是否手动修改了 holdings.json，导致缓存失效
+- 汇率问题：检查 config.json 中的 fx.rates 配置或环境变量 FX_USD_CNY、FX_HKD_CNY
+
+**更新** 新增了汇率相关问题的排查指南。
 
 章节来源
 - [server/server.js:567-594](file://server/server.js#L567-L594)
 - [server/store.js:62-70](file://server/store.js#L62-L70)
+- [server/provider/fx.js:18-23](file://server/provider/fx.js#L18-L23)
 
 ## 结论
-本 API 提供了完整的持仓生命周期管理能力，支持多次买入、卖出、策略配置与告警阈值设置，并通过派生字段简化前端展示。结合串行写盘与内存缓存，保证了高并发下的数据一致性与性能。建议在生产环境配合定时任务与通知机制，形成闭环的投资辅助流程。
+本 API 提供了完整的持仓生命周期管理能力，支持多次买入、卖出、策略配置与告警阈值设置，并通过派生字段简化前端展示。**新增的多币种支持**使得系统能够统一管理不同市场的投资组合，自动识别币种并提供汇率换算功能。结合串行写盘与内存缓存，保证了高并发下的数据一致性与性能。建议在生产环境配合定时任务与通知机制，形成闭环的投资辅助流程。
+
+**更新** 强调了新增的多币种支持功能及其在投资组合管理中的重要作用。
 
 [本节为总结性内容，无需具体文件引用]
 
@@ -310,6 +349,9 @@ E["web/src/composables/useHoldings.js"] --> A
   - strategy：投资策略（long/mid/short/highrisk）
   - snapshotDate/snapshotProfit/snapshotReturnRate：快照信息
   - position：初始仓位（可选）
+- **新增** 货币信息
+  - currency：币种代码（CNY/HKD/USD），根据地区自动映射
+  - currencyCode：币种显示代码（如 "HKD"、"USD"、"CNY"）
 - 交易明细
   - purchases[]：多次买入记录（见下）
   - sells[]：卖出记录（见下）
@@ -334,6 +376,8 @@ E["web/src/composables/useHoldings.js"] --> A
   - dropRate：较最近买入价的跌幅
   - transactions：合并后的交易流水（含买入与卖出）
 
+**更新** 新增了货币信息字段，支持多币种投资组合管理。
+
 ### 买入记录（Purchase）
 - id：唯一标识
 - buyPrice：买入价（正数）
@@ -356,9 +400,20 @@ E["web/src/composables/useHoldings.js"] --> A
 - triggerState：IDLE/SELL/BUY（由策略引擎评估）
 - notifiedAt：上次通知时间
 
+### 汇率配置（fx）
+- rates：汇率对象，包含各币种兑人民币汇率
+  - CNY：1（基准）
+  - USD：美元兑人民币汇率（如 7.0）
+  - HKD：港币兑人民币汇率（如 0.9）
+- source：汇率数据来源标识
+
+**新增** 汇率配置信息，用于前端进行多币种金额的统一展示和计算。
+
 章节来源
-- [server/server.js:302-344](file://server/server.js#L302-L344)
-- [server/server.js:146-245](file://server/server.js#L146-L245)
-- [server/server.js:247-284](file://server/server.js#L247-L284)
-- [server/strategy.js:34-90](file://server/strategy.js#L34-L90)
+- [server/server.js:308-350](file://server/server.js#L308-L350)
+- [server/server.js:150-251](file://server/server.js#L150-L251)
+- [server/server.js:253-290](file://server/server.js#L253-L290)
+- [server/currency.js:1-49](file://server/currency.js#L1-L49)
+- [server/provider/fx.js:1-23](file://server/provider/fx.js#L1-L23)
 - [data/holdings.json:1-462](file://data/holdings.json#L1-L462)
+- [config.json:18-20](file://config.json#L18-L20)

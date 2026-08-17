@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: 股票秘书全栈工程（Stock Secretary）
+title: 股票秘书单仓编排（Node 后端 + Vue3 前端 + 数据文档）
 scope:
     - config.json
     - package.json

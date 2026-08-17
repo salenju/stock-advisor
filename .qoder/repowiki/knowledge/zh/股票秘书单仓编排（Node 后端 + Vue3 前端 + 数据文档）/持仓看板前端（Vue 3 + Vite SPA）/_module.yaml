@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: web
-title: 股票持仓看板 Web 前端（Vue 单页应用）
+title: 持仓看板前端（Vue 3 + Vite SPA）
 scope:
     - web/
 source_files: []
