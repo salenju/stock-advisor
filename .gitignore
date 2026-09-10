@@ -4,3 +4,16 @@ dist/
 .DS_Store
 
 .pnpm-store/
+
+# ---- 工具/助手本地数据 ----
+.workbuddy/
+
+# ---- 本地私密配置与个人数据（禁止入库）----
+# config.json 含飞书 webhook / secret，data/ 含个人投资明细。
+# 模板请参考 config.example.json 与 data/holdings.example.json。
+config.json
+data/*.json
+data/*.csv
+data/backups/
+logs/
+!data/holdings.example.json

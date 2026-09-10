@@ -1,0 +1,46 @@
+{
+  "schedule": {
+    "intervalSeconds": 20,
+    "offHoursIntervalSeconds": 300,
+    "snapshot": true,
+    "dailyReport": true,
+    "marketHolidays": {
+      "sh": [],
+      "sz": [],
+      "hk": [],
+      "us": []
+    }
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 3000
+  },
+  "auth": {
+    "token": ""
+  },
+  "feishu": {
+    "webhook": "REPLACE_WITH_YOUR_WEBHOOK",
+    "secret": "REPLACE_WITH_YOUR_SECRET"
+  },
+  "notify": {
+    "cooldownSeconds": 3600,
+    "nearThresholdPct": 2
+  },
+  "fx": {
+    "autoUpdate": true,
+    "updateHour": 8,
+    "rates": {
+      "USD_CNY": 7,
+      "HKD_CNY": 0.9
+    }
+  },
+  "backup": {
+    "enabled": true,
+    "keep": 30
+  },
+  "logging": {
+    "enabled": true,
+    "dir": "logs",
+    "keepDays": 14
+  }
+}

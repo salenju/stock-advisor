@@ -1,8 +1,13 @@
 // CSV 导入核心逻辑（可复用模块）：命令行脚本与 HTTP 接口共用。
+//
 // 导入规则：
 //   1. 精确匹配：CSV 代码 === holdings.code（如 07709、005827）
 //   2. 数字归一化匹配：提取 holdings.code 中的数字与 CSV 代码比较（hk00700 → 700）
 // 幂等：每条记录以 (code, 操作, 日期, 数量, 价格) 为唯一键，holdings 中已存在则忽略，否则插入。
+//
+// 支持的「操作」列取值：买入 / 卖出 / 分红 / 送转（送股、拆股同义）。
+// 台账口径统一由 derive.js 提供，避免导入路径与页面录入路径算出不同结果。
+import { applyTransaction, normalizeCostMethod, dateKey } from './derive.js';
 
 // 解析 CSV 文本（支持 BOM、引号包裹、逗号分隔），返回二维数组
 export function parseCsvText(text) {
@@ -28,108 +33,8 @@ function digitsOf(code) {
   return d.replace(/^0+(?=\d)/, '') || d;
 }
 
-// 日期归一化为 YYYY-MM-DD（补前导零），保证幂等匹配时格式一致
-function normalizeDate(date) {
-  const s = String(date || '').trim();
-  const m = s.match(/^(\d{4})[\-\/\.](\d{1,2})[\-\/\.](\d{1,2})$/);
-  if (!m) return s;
-  return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
-}
-
-// 生成唯一 id（与 server.js 的 pid 风格一致）
-function pid() {
-  return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-}
-
-// 买入记录归一化（参照 server.js normalizePurchase）
-function normalizePurchase(b) {
-  const buyPrice = Number(b.buyPrice);
-  const buyQuantity = Number(b.buyQuantity);
-  if (!(buyPrice > 0) || !(buyQuantity > 0)) {
-    throw new Error(`买入价/买入数量必须为正：${JSON.stringify(b)}`);
-  }
-  return {
-    id: pid(),
-    buyPrice,
-    buyQuantity,
-    buyTime: b.buyTime,
-    targetProfitRate: Number(b.targetProfitRate) || 0,
-    stopLossRate: Number(b.stopLossRate) || 0,
-  };
-}
-
-// 按 LIFO 计算卖出成本（参照 server.js applyTransaction）
-function computeSellCost(h, qty, sellPrice) {
-  const sorted = [...(h.purchases || [])].sort((a, b) =>
-    String(b.buyTime).localeCompare(String(a.buyTime))
-  );
-  let remaining = qty;
-  let totalCost = 0;
-  for (const p of sorted) {
-    if (remaining <= 0) break;
-    const take = Math.min(remaining, Number(p.buyQuantity) || 0);
-    totalCost += take * (Number(p.buyPrice) || 0);
-    remaining -= take;
-  }
-  if (remaining > 0) {
-    throw new Error(`卖出数量(${qty})超过持仓数量，无法匹配成本`);
-  }
-  const costPrice = totalCost / qty;
-  const profit = (sellPrice - costPrice) * qty;
-  const returnRate = costPrice > 0 ? ((sellPrice - costPrice) / costPrice) * 100 : 0;
-  return { costPrice, profit, returnRate };
-}
-
-// 同步汇总字段（参照 server.js syncFromPurchases）
-function syncFromPurchases(h) {
-  const totalBuy = (h.purchases || []).reduce(
-    (s, p) => s + (Number(p.buyPrice) || 0) * (Number(p.buyQuantity) || 0), 0
-  );
-  const totalBuyQty = (h.purchases || []).reduce(
-    (s, p) => s + (Number(p.buyQuantity) || 0), 0
-  );
-  const totalSellCost = (h.sells || []).reduce(
-    (s, sel) => s + (Number(sel.costPrice) || 0) * (Number(sel.sellQuantity) || 0), 0
-  );
-  const totalSellQty = (h.sells || []).reduce(
-    (s, sel) => s + (Number(sel.sellQuantity) || 0), 0
-  );
-  const remainingCost = Math.max(totalBuy - totalSellCost, 0);
-  const remainingQty = Math.max(totalBuyQty - totalSellQty, 0);
-
-  h.cost = remainingCost;
-  h.buyQuantity = remainingQty;
-  h.position = remainingCost;
-  h.avgCost = remainingQty > 0 ? remainingCost / remainingQty : 0;
-  h.lastBuyPrice =
-    h.purchases.length > 0
-      ? [...h.purchases].sort((a, b) => String(b.buyTime).localeCompare(String(a.buyTime)))[0].buyPrice
-      : 0;
-  // 止盈/止损按成本加权
-  let wTarget = 0;
-  let wStop = 0;
-  if (totalBuy > 0) {
-    for (const p of h.purchases || []) {
-      const w = (Number(p.buyPrice) || 0) * (Number(p.buyQuantity) || 0);
-      wTarget += (Number(p.targetProfitRate) || 0) * w;
-      wStop += (Number(p.stopLossRate) || 0) * w;
-    }
-    wTarget /= totalBuy;
-    wStop /= totalBuy;
-  }
-  h.targetProfitRate = Number(h.targetProfitRate ?? wTarget) || wTarget;
-  h.stopLossRate = Number(h.stopLossRate ?? wStop) || wStop;
-  // 持仓状态
-  const totalBought = (h.purchases || []).reduce((s, p) => s + (Number(p.buyQuantity) || 0), 0);
-  const totalSold = (h.sells || []).reduce((s, sel) => s + (Number(sel.sellQuantity) || 0), 0);
-  h.status = totalBought === 0 ? (h.status || '持有') : totalSold >= totalBought ? '全部卖出' : '持有';
-  h.triggerState = 'IDLE';
-  h.notifiedAt = null;
-  return h;
-}
-
-// 新建持仓（参照 server.js createHolding）
-function createHolding(name, code, region, type) {
+// 新建持仓（与 server.js createHolding 对齐的最小字段集）
+function createHolding(name, code, region, type, costMethod) {
   const today = new Date().toISOString().slice(0, 10);
   return {
     id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -139,15 +44,23 @@ function createHolding(name, code, region, type) {
     region: region || '',
     type: type || '',
     strategy: '',
+    costMethod: normalizeCostMethod(costMethod),
     snapshotDate: today,
     snapshotProfit: 0,
     snapshotReturnRate: 0,
     position: 0,
     purchases: [],
     sells: [],
+    dividends: [],
+    splits: [],
     refillDropRate: 0,
     refillPrice: 0,
     nextStrategy: '',
+    trailingStopPct: null,
+    peakReturnRate: null,
+    dailyDropAlertPct: null,
+    dailyRiseAlertPct: null,
+    dailyAlertSentDate: null,
     currentPrice: null,
     prevClose: null,
     lastUpdated: null,
@@ -156,20 +69,51 @@ function createHolding(name, code, region, type) {
   };
 }
 
+// 操作列 → 交易类型
+function parseOper(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  if (s.includes('卖')) return 'SELL';
+  if (s.includes('分红') || s.includes('红利') || s.includes('派息')) return 'DIVIDEND';
+  if (s.includes('送转') || s.includes('送股') || s.includes('转增') || s.includes('拆')) return 'SPLIT';
+  if (s.includes('买')) return 'BUY';
+  return null;
+}
+
+// 幂等键：(类型, 日期, 数量/金额/比例, 价格)
+function existingKey(h, oper, rec) {
+  if (oper === 'DIVIDEND') {
+    return (h.dividends || []).some(
+      (x) => dateKey(x.date) === rec.date && Math.abs(Number(x.amount) - rec.amount) < 1e-9
+    );
+  }
+  if (oper === 'SPLIT') {
+    return (h.splits || []).some(
+      (x) => dateKey(x.date) === rec.date && Math.abs(Number(x.ratio) - rec.ratio) < 1e-9
+    );
+  }
+  const list = oper === 'BUY' ? h.purchases : h.sells;
+  return (list || []).some((x) => {
+    const xPrice = oper === 'BUY' ? Number(x.buyPrice) : Number(x.sellPrice);
+    const xQty = oper === 'BUY' ? Number(x.buyQuantity) : Number(x.sellQuantity);
+    const xDate = oper === 'BUY' ? x.buyTime : x.sellDate;
+    return (
+      Math.abs(Number(xPrice) - rec.price) < 1e-9 &&
+      Math.abs(Number(xQty) - rec.qty) < 1e-9 &&
+      dateKey(xDate) === rec.date
+    );
+  });
+}
+
 /**
  * 把 CSV 文本按「代码」导入到 holdings 数组（原地修改 holdings）。
  * @param {Array} holdings 现有持仓数组（会被修改）
  * @param {string} csvText CSV 文本内容
- * @param {{ createMissing?: boolean }} [opts]
+ * @param {{ createMissing?: boolean, costMethod?: string }} [opts]
  * @returns {{ added:number, skipped:number, created:number, createdCodes:Array, missing:Array, errors:Array, total:number }}
- *   - added: 新插入的明细条数；skipped: holdings 中已存在的明细条数（忽略）
- *   - created: 自动新建的持仓只数（仅 createMissing 时）
- *   - missing: 匹配不到持仓且未自动新建的记录
- *   - errors: 导入出错（如卖出数量超持仓）的记录
- * @throws 当 CSV 缺少必需列时抛错
  */
 export function importCsvText(holdings, csvText, opts = {}) {
-  const { createMissing = false } = opts;
+  const { createMissing = false, costMethod } = opts;
   const rows = parseCsvText(csvText);
   if (!rows.length) return { added: 0, skipped: 0, created: 0, createdCodes: [], missing: [], errors: [], total: 0 };
 
@@ -181,33 +125,41 @@ export function importCsvText(holdings, csvText, opts = {}) {
   const iRegion = colIndex(['地区']);
   const iType = colIndex(['类型']);
   const iOper = colIndex(['操作']);
-  const iDate = colIndex(['买入日期', '卖出日期', '日期']);
+  const iDate = colIndex(['买入日期', '卖出日期', '交易日期', '日期']);
   const iQty = colIndex(['买入数量', '卖出数量', '数量']);
   const iPrice = colIndex(['买入价', '卖出价', '价格']);
-  if (iCode < 0 || iOper < 0 || iDate < 0 || iQty < 0 || iPrice < 0) {
-    throw new Error(`CSV 表头缺少必需列（需包含：代码 / 操作 / 日期 / 数量 / 价格）。当前表头：${header.join(',')}`);
+  const iFee = colIndex(['手续费', '佣金', '费用']);
+  const iAmount = colIndex(['分红金额', '金额']);
+  const iRatio = colIndex(['送转比例', '送股比例', '拆分比例', '比例']);
+  if (iCode < 0 || iOper < 0 || iDate < 0) {
+    throw new Error(`CSV 表头缺少必需列（需包含：代码 / 操作 / 日期）。当前表头：${header.join(',')}`);
   }
 
-  // 解析 CSV 数据行
+  // 解析 CSV 数据行（按操作类型分别校验必需字段）
   const records = [];
   for (const r of rows.slice(1)) {
     const code = String(r[iCode] || '').trim();
-    const oper = String(r[iOper] || '').trim();
-    const date = String(r[iDate] || '').trim();
-    const qty = Number(r[iQty]);
-    const price = Number(r[iPrice]);
-    if (!code || !oper || !date || !(qty > 0) || !(price > 0)) continue; // 跳过空行/非法行
-    records.push({
+    const oper = parseOper(r[iOper]);
+    const date = dateKey(r[iDate]);
+    if (!code || !oper || !date) continue;
+    const rec = {
       seq: r[iSeq]?.trim(),
       name: r[iName]?.trim(),
       code,
       region: r[iRegion]?.trim(),
       type: r[iType]?.trim(),
-      oper: oper.includes('卖') ? 'SELL' : 'BUY',
-      date: normalizeDate(date),
-      qty,
-      price,
-    });
+      oper,
+      date,
+      qty: Number(r[iQty]),
+      price: Number(r[iPrice]),
+      fee: iFee >= 0 ? Number(r[iFee]) || 0 : 0,
+      amount: iAmount >= 0 ? Number(r[iAmount]) || 0 : 0,
+      ratio: iRatio >= 0 ? Number(r[iRatio]) || 0 : 0,
+    };
+    if ((oper === 'BUY' || oper === 'SELL') && (!(rec.qty > 0) || !(rec.price > 0))) continue;
+    if (oper === 'DIVIDEND' && !(rec.amount > 0)) continue;
+    if (oper === 'SPLIT' && !(rec.ratio > 0)) continue;
+    records.push(rec);
   }
 
   // 建立代码 → 持仓映射（含数字归一化兜底）
@@ -224,21 +176,6 @@ export function importCsvText(holdings, csvText, opts = {}) {
     return d ? byDigits.get(d) : undefined;
   };
 
-  // 幂等：holdings 中已有同 (日期,数量,价格) 的记录则忽略
-  const existingKey = (h, oper, date, qty, price) => {
-    const list = oper === 'BUY' ? h.purchases : h.sells;
-    return (list || []).some((x) => {
-      const xPrice = oper === 'BUY' ? Number(x.buyPrice) : Number(x.sellPrice);
-      const xQty = oper === 'BUY' ? Number(x.buyQuantity) : Number(x.sellQuantity);
-      const xDate = oper === 'BUY' ? x.buyTime : x.sellDate;
-      return (
-        Math.abs(Number(xPrice) - price) < 1e-9 &&
-        Math.abs(Number(xQty) - qty) < 1e-9 &&
-        String(xDate) === String(date)
-      );
-    });
-  };
-
   let added = 0;
   let skipped = 0;
   let created = 0;
@@ -251,7 +188,7 @@ export function importCsvText(holdings, csvText, opts = {}) {
     let h = resolveHolding(rec.code);
     // 匹配不到时，若允许则按「地区/类型」新建持仓
     if (!h && createMissing) {
-      const newH = createHolding(rec.name, rec.code, rec.region, rec.type);
+      const newH = createHolding(rec.name, rec.code, rec.region, rec.type, costMethod);
       holdings.push(newH);
       byExact.set(String(rec.code), newH);
       const d = digitsOf(rec.code);
@@ -267,36 +204,25 @@ export function importCsvText(holdings, csvText, opts = {}) {
       missing.push(rec);
       continue;
     }
-    if (existingKey(h, rec.oper, rec.date, rec.qty, rec.price)) {
+    if (existingKey(h, rec.oper, rec)) {
       skipped++;
       continue;
     }
     try {
-      if (rec.oper === 'BUY') {
-        h.purchases = h.purchases || [];
-        h.purchases.push(
-          normalizePurchase({
-            buyPrice: rec.price,
-            buyQuantity: rec.qty,
-            buyTime: rec.date,
-            targetProfitRate: h.targetProfitRate || 0,
-            stopLossRate: h.stopLossRate || 0,
-          })
-        );
+      // 统一走 derive 的交易应用：买入/卖出/分红/送转口径与页面录入完全一致
+      if (rec.oper === 'DIVIDEND') {
+        applyTransaction(h, { type: 'DIVIDEND', amount: rec.amount, fee: rec.fee, date: rec.date });
+      } else if (rec.oper === 'SPLIT') {
+        applyTransaction(h, { type: 'SPLIT', ratio: rec.ratio, date: rec.date });
       } else {
-        h.sells = h.sells || [];
-        const { costPrice, profit, returnRate } = computeSellCost(h, rec.qty, rec.price);
-        h.sells.push({
-          id: pid(),
-          sellPrice: rec.price,
-          sellQuantity: rec.qty,
-          sellDate: rec.date,
-          costPrice,
-          profit,
-          returnRate,
+        applyTransaction(h, {
+          type: rec.oper,
+          price: rec.price,
+          quantity: rec.qty,
+          fee: rec.fee,
+          date: rec.date,
         });
       }
-      syncFromPurchases(h);
       added++;
     } catch (e) {
       errors.push({ rec, message: e.message });

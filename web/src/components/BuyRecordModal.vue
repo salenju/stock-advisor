@@ -18,6 +18,7 @@ const buyQuantity = ref('');
 const buyTime = ref('');
 const targetProfitRate = ref('');
 const stopLossRate = ref('');
+const fee = ref('');
 const buyError = ref('');
 
 watch(
@@ -29,6 +30,7 @@ watch(
       buyTime.value = props.buyForm.buyTime;
       targetProfitRate.value = props.buyForm.targetProfitRate;
       stopLossRate.value = props.buyForm.stopLossRate;
+      fee.value = props.buyForm.fee ?? '';
       buyError.value = '';
     }
   }
@@ -45,6 +47,7 @@ async function submitBuy() {
       buyTime: buyTime.value,
       targetProfitRate: targetProfitRate.value,
       stopLossRate: stopLossRate.value,
+      fee: fee.value,
     });
     emit('close');
   } catch (e) {
@@ -72,6 +75,10 @@ async function submitBuy() {
         <label class="block text-sm">
           <span class="mb-1 block opacity-60">买入日期</span>
           <input v-model="buyTime" type="date" class="input input-bordered w-full" />
+        </label>
+        <label class="block text-sm">
+          <span class="mb-1 block opacity-60">手续费（可选，计入成本）</span>
+          <input v-model="fee" type="number" step="0.01" class="input input-bordered w-full" placeholder="0" />
         </label>
         <label class="block text-sm">
           <span class="mb-1 block opacity-60">止盈收益率 %</span>

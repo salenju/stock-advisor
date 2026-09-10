@@ -6,6 +6,7 @@
 import { getRates } from './provider/fx.js';
 import { fxToCNY, currencyOf } from './currency.js';
 import { normalizeRegion, toTencentCode } from './provider/tencent.js';
+import { dateKey, isActive } from './derive.js';
 
 const KLINE_BASE = 'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get';
 const FUND_NAV_URL = (code) => `https://fund.eastmoney.com/pingzhongdata/${code}.js`;
@@ -133,15 +134,29 @@ export function buildTrendSeries(holdings, closesByCode, rates, opts = {}) {
       }
       if (!lastBar || lastBar.date > date) continue; // 该日期前还没有K线
 
-      const qty = sum(buys.filter((p) => String(p.buyTime || '').slice(0, 10) <= date), 'buyQuantity')
-        - sum(sells.filter((s) => String(s.sellDate || '').slice(0, 10) <= date), 'sellQuantity');
-      if (qty <= 0) continue;
+      // 日期归一化后比较，避免 ISO 时间戳与短日期混存导致错判
+      const rawQty = sum(buys.filter((p) => { const d = dateKey(p.buyTime); return d && d <= date; }), 'buyQuantity')
+        - sum(sells.filter((s) => { const d = dateKey(s.sellDate); return d && d <= date; }), 'sellQuantity');
+      if (rawQty <= 0) continue;
 
-      const buyCost = sum(buys.filter((p) => String(p.buyTime || '').slice(0, 10) <= date), (p) => Number(p.buyPrice) * Number(p.buyQuantity));
-      const sellAmount = sum(sells.filter((s) => String(s.sellDate || '').slice(0, 10) <= date), (s) => Number(s.sellPrice) * Number(s.sellQuantity));
+      // 送转/拆股：该日期之前生效的比例累乘（份额变化，成本金额不变）
+      const splitRatio = (h.splits || []).reduce((acc, sp) => {
+        const d = dateKey(sp.date);
+        const r = Number(sp.ratio) || 0;
+        return d && r > 0 && d <= date ? acc * r : acc;
+      }, 1);
+      const qty = rawQty * splitRatio;
+
+      const buyCost = sum(buys.filter((p) => { const d = dateKey(p.buyTime); return d && d <= date; }), (p) => Number(p.buyPrice) * Number(p.buyQuantity) + (Number(p.fee) || 0));
+      const sellAmount = sum(sells.filter((s) => { const d = dateKey(s.sellDate); return d && d <= date; }), (s) => Number(s.sellPrice) * Number(s.sellQuantity) - (Number(s.fee) || 0));
+      // 累计现金分红（计入已实现收益，与 withDerived 口径一致）
+      const dividendAmount = sum(
+        (h.dividends || []).filter((v) => { const d = dateKey(v.date); return d && d <= date; }),
+        (v) => Number(v.amount) - (Number(v.fee) || 0)
+      );
 
       const mv = lastBar.close * qty;                       // 本地币种市值
-      const hp = mv - buyCost + sellAmount;                  // 本地币种持仓收益
+      const hp = mv - buyCost + sellAmount + dividendAmount; // 本地币种持仓收益
       marketValue[i] += fxToCNY(mv, currency, rates);
       holdingProfit[i] += fxToCNY(hp, currency, rates);
       // 今日收益：仅在该标的有当日K线时计算（(当日-前收)×数量）
@@ -177,7 +192,7 @@ export function filterByDays(dates, holdingProfit, todayProfit, marketValue, day
 export async function buildTrend(holdings, cfg) {
   const rates = getRates(cfg);
   const closesByCode = {};
-  const active = holdings.filter((h) => h.status === '持有' || !h.status);
+  const active = holdings.filter(isActive);
   for (const h of active) {
     const code = toTencentCode(h.region, h.code);
     closesByCode[code] = await fetchCloses(code);

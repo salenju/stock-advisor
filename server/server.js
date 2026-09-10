@@ -2,12 +2,26 @@ import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize } from 'node:path';
-import { loadHoldings, saveHoldings } from './store.js';
+import { loadHoldings, saveHoldings, storeInfo } from './store.js';
 import { sendCard } from './notifier.js';
 import { importCsvText } from './import-csv-core.js';
-import { currencyOf, currencyCode } from './currency.js';
-import { getRates } from './provider/fx.js';
+import { getRates, fxInfo } from './provider/fx.js';
 import { buildTrend, filterByDays } from './trend.js';
+import {
+  withDerived,
+  syncFromPurchases,
+  applyTransaction,
+  normalizePurchase,
+  normalizeCostMethod,
+  recomputeSells,
+  dateKey,
+  isActive,
+  COST_METHODS,
+} from './derive.js';
+import { buildStats } from './stats.js';
+import { loadSnapshots, mergeSnapshots } from './snapshot.js';
+import { runtime } from './runtime.js';
+import { logger, loggerInfo } from './logger.js';
 
 // 投资策略枚举：集中定义，后续新增/修改策略只需在此处增删条目。
 // 每个条目含 value（落盘值）/ label（展示文案）/ cls（标签配色）。
@@ -85,225 +99,63 @@ function readRawBody(req) {
   });
 }
 
-function pid() {
-  return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+// ---------- 鉴权 ----------
+// config.auth.token 非空时，所有写接口与读取接口都要求携带 token，
+// 防止同局域网/公网下他人随意读取或篡改你的投资数据。
+// 支持三种携带方式：Authorization: Bearer <token> / x-auth-token 头 / ?token=<token>
+function authOk(req, url, cfg) {
+  const expect = String(cfg?.auth?.token || '').trim();
+  if (!expect) return true;
+  const h = req.headers || {};
+  const bearer = String(h.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  const header = String(h['x-auth-token'] || '').trim();
+  const query = String(url.searchParams.get('token') || '').trim();
+  return bearer === expect || header === expect || query === expect;
 }
 
-// 单条买入记录派生（基于当前价）
-function derivePurchase(p, currentPrice) {
-  const price = Number(currentPrice);
-  const buyPrice = Number(p.buyPrice) || 0;
-  const qty = Number(p.buyQuantity) || 0;
-  const cost = buyPrice * qty;
-  const hasPrice = price != null && !Number.isNaN(price);
-  const marketValue = hasPrice ? price * qty : null;
-  const profit = hasPrice ? price * qty - cost : null;
-  const returnRate =
-    hasPrice && buyPrice > 0 ? ((price - buyPrice) / buyPrice) * 100 : null;
-  // 止盈价 = 买入价 * (1 + 止盈%)；止损价 = 买入价 * (1 - 止亏%)
-  const targetPrice =
-    buyPrice > 0 && p.targetProfitRate != null
-      ? buyPrice * (1 + Number(p.targetProfitRate) / 100)
-      : null;
-  const stopLossPrice =
-    buyPrice > 0 && p.stopLossRate != null
-      ? buyPrice * (1 - Number(p.stopLossRate) / 100)
-      : null;
-  return {
-    ...p,
-    cost,
-    marketValue,
-    profit,
-    returnRate,
-    targetPrice,
-    stopLossPrice,
-  };
+// ---------- CSV 导出 ----------
+
+function csvCell(v) {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-// 卖出记录派生字段
-function deriveSell(s) {
-  const qty = Number(s.sellQuantity) || 0;
-  const sellPrice = Number(s.sellPrice) || 0;
-  const costPrice = Number(s.costPrice) || 0;
-  const cost = costPrice * qty;
-  const amount = sellPrice * qty;
-  const profit = Number(s.profit) ?? ((sellPrice - costPrice) * qty);
-  const returnRate = Number(s.returnRate) ?? (costPrice > 0 ? ((sellPrice - costPrice) / costPrice) * 100 : 0);
-  return {
-    type: 'SELL',
-    id: s.id,
-    buyTime: s.sellDate || s.sellTime, // 统一用 buyTime 作为日期字段
-    buyPrice: sellPrice,
-    buyQuantity: qty,
-    cost,
-    marketValue: amount,
-    profit,
-    returnRate,
-    targetProfitRate: null,
-    stopLossRate: null,
-    targetPrice: null,
-    stopLossPrice: null,
-  };
+function toCsv(header, rows) {
+  // 加 BOM 便于 Excel 正确识别中文
+  return '\uFEFF' + [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
 }
 
-// 派生展示字段（汇总 + 每次买入明细 + 今日/持仓收益）
-function withDerived(h) {
-  const price = h.currentPrice;
-  const prevClose = h.prevClose;
-  const currency = currencyOf(h.region); // 按地区映射币种（A股人民币/港股港币/美股美元）
-
-  const purchases = (h.purchases || [])
-    .map((p) => derivePurchase(p, price))
-    .sort((a, b) => String(b.buyTime || '').localeCompare(String(a.buyTime || '')));
-
-  const sells = (h.sells || [])
-    .map((s) => deriveSell(s))
-    .sort((a, b) => String(b.buyTime || '').localeCompare(String(a.buyTime || '')));
-
-  // 合并买入/卖出记录统一展示（买入收益置 null → 前端显示 "-- / --"）
-  const transactions = [
-    ...purchases.map((p) => ({ ...p, type: 'BUY', profit: null, returnRate: null })),
-    ...sells,
-  ].sort((a, b) => String(b.buyTime || '').localeCompare(String(a.buyTime || '')));
-
-  const totalCost = purchases.reduce((s, p) => s + p.cost, 0);
-  const totalQuantity = purchases.reduce((s, p) => s + Number(p.buyQuantity) || 0, 0);
-  const totalSoldQty = sells.reduce((s, sel) => s + (Number(sel.buyQuantity) || 0), 0);
-  const totalSoldCost = sells.reduce((s, sel) => s + (Number(sel.cost) || 0), 0);
-  const unsoldQuantity = Math.max(totalQuantity - totalSoldQty, 0);
-  // 剩余仓位成本 = 总买入成本 - 已卖出部分的成本
-  const remainingCost = Math.max(totalCost - totalSoldCost, 0);
-  const avgCost = unsoldQuantity > 0 ? remainingCost / unsoldQuantity : 0;
-
-  // 已实现盈利 = 所有卖出记录的 profit 之和
-  const realizedProfit = sells.reduce((s, sel) => s + (Number(sel.profit) || 0), 0);
-  // 未实现盈利 = (现价 - 均价) * 未卖出数量
-  const unrealizedProfit =
-    price != null && unsoldQuantity > 0 && avgCost > 0
-      ? (Number(price) - avgCost) * unsoldQuantity
-      : null;
-
-  const marketValue =
-    price != null ? Number(price) * unsoldQuantity : null;
-
-  // 需求 3.2：持仓收益 = 未实现 + 已实现
-  const holdingProfit =
-    unrealizedProfit != null
-      ? unrealizedProfit + realizedProfit
-      : realizedProfit !== 0
-        ? realizedProfit
-        : null;
-  const holdingReturnRate =
-    totalCost > 0 && holdingProfit != null
-      ? (holdingProfit / totalCost) * 100
-      : null;
-
-  // 需求 3.1：今日收益仅用未卖出数量
-  const todayProfit =
-    price != null && prevClose != null && unsoldQuantity > 0
-      ? (Number(price) - Number(prevClose)) * unsoldQuantity
-      : null;
-  const todayReturnRate =
-    price != null && prevClose != null && Number(prevClose) > 0
-      ? ((Number(price) - Number(prevClose)) / Number(prevClose)) * 100
-      : null;
-
-  // 最近买入价（按买入时间取最新一条）
-  const lastBuyPrice =
-    purchases.length > 0
-      ? [...purchases].sort((a, b) => String(b.buyTime).localeCompare(String(a.buyTime)))[0].buyPrice
-      : 0;
-
-  // 持仓级止盈/止亏 = 按成本加权的买入记录均值
-  const wTarget =
-    totalCost > 0
-      ? purchases.reduce((s, p) => s + (Number(p.targetProfitRate) || 0) * p.cost, 0) / totalCost
-      : 0;
-  const wStop =
-    totalCost > 0
-      ? purchases.reduce((s, p) => s + (Number(p.stopLossRate) || 0) * p.cost, 0) / totalCost
-      : 0;
-
-  return {
-    ...h,
-    currency,                          // CNY / HKD / USD（按地区映射）
-    currencyCode: currencyCode(currency),
-    purchases,
-    transactions,                    // 前端表用此字段展示（含买入+卖出）
-    cost: remainingCost,
-    buyQuantity: unsoldQuantity,
-    sellQuantity: totalSoldQty,
-    unsoldQuantity,
-    avgCost,
-    lastBuyPrice,
-    marketValue,
-    holdingProfit,
-    holdingReturnRate,
-    todayProfit,
-    todayReturnRate,
-    targetProfitRate: Number(h.targetProfitRate ?? wTarget) || wTarget,
-    stopLossRate: Number(h.stopLossRate ?? wStop) || wStop,
-    dropRate:
-      price != null && lastBuyPrice > 0
-        ? ((lastBuyPrice - price) / lastBuyPrice) * 100
-        : null,
-  };
-}
-
-// 由买入/卖出记录反推剩余持仓的成本/数量/均价（落盘前同步）
-function syncFromPurchases(h) {
-  const totalBuy = (h.purchases || []).reduce(
-    (s, p) => s + (Number(p.buyPrice) || 0) * (Number(p.buyQuantity) || 0), 0
-  );
-  const totalBuyQty = (h.purchases || []).reduce(
-    (s, p) => s + (Number(p.buyQuantity) || 0), 0
-  );
-  // 扣除已卖出部分的成本（每笔 sell 的 costPrice 是在卖出时按 LIFO 计算的均价）
-  const totalSellCost = (h.sells || []).reduce(
-    (s, sel) => s + (Number(sel.costPrice) || 0) * (Number(sel.sellQuantity) || 0), 0
-  );
-  const totalSellQty = (h.sells || []).reduce(
-    (s, sel) => s + (Number(sel.sellQuantity) || 0), 0
-  );
-  const remainingCost = Math.max(totalBuy - totalSellCost, 0);
-  const remainingQty = Math.max(totalBuyQty - totalSellQty, 0);
-  const avgCost = remainingQty > 0 ? remainingCost / remainingQty : 0;
-
-  const lastBuyPrice =
-    (h.purchases || []).length > 0
-      ? [...h.purchases].sort((a, b) => String(b.buyTime).localeCompare(String(a.buyTime)))[0].buyPrice
-      : 0;
-  const totalC = totalBuy || 1;
-  const wTarget = (h.purchases || []).reduce(
-    (s, p) => s + (Number(p.targetProfitRate) || 0) * (Number(p.buyPrice) * Number(p.buyQuantity)), 0
-  ) / totalC;
-  const wStop = (h.purchases || []).reduce(
-    (s, p) => s + (Number(p.stopLossRate) || 0) * (Number(p.buyPrice) * Number(p.buyQuantity)), 0
-  ) / totalC;
-  h.cost = remainingCost;
-  h.buyQuantity = remainingQty;
-  h.lastBuyPrice = lastBuyPrice;
-  h.avgCost = avgCost;
-  if (wTarget) h.targetProfitRate = +wTarget.toFixed(2);
-  if (wStop) h.stopLossRate = +wStop.toFixed(2);
-  return h;
-}
-
-function normalizePurchase(b, id) {
-  const buyPrice = Number(b.buyPrice);
-  const buyQuantity = Number(b.buyQuantity);
-  if (!(buyPrice > 0) || !(buyQuantity > 0)) {
-    throw new Error('买入价/买入数量必须为正');
+function buildTradesCsv(holdings) {
+  const header = ['代码', '名称', '地区', '类型', '操作', '日期', '价格', '数量', '手续费', '成本价', '盈亏', '收益率%'];
+  const rows = [];
+  for (const h of holdings) {
+    const d = withDerived(h);
+    for (const p of d.purchases) {
+      rows.push([h.code, h.name, h.region, h.type, '买入', dateKey(p.buyTime), p.buyPrice, p.buyQuantity, p.fee || 0, '', '', '']);
+    }
+    for (const s of d.sells) {
+      rows.push([h.code, h.name, h.region, h.type, '卖出', s.buyTime, s.buyPrice, s.buyQuantity, s.fee || 0, s.cost, s.profit, s.returnRate]);
+    }
+    for (const v of d.dividends) {
+      rows.push([h.code, h.name, h.region, h.type, '分红', v.buyTime, '', '', v.fee || 0, '', v.profit, '']);
+    }
   }
-  return {
-    id: id || pid(),
-    buyPrice,
-    buyQuantity,
-    buyTime: b.buyTime || b.date || new Date().toISOString().slice(0, 10),
-    targetProfitRate: Number(b.targetProfitRate) || 0,
-    stopLossRate: Number(b.stopLossRate) || 0,
-  };
+  rows.sort((a, b) => String(a[5]).localeCompare(String(b[5])));
+  return toCsv(header, rows);
 }
+
+function buildStatsCsv(holdings, rates) {
+  const stats = buildStats(holdings, rates);
+  const header = ['代码', '名称', '状态', '成本法', '买入成本(CNY)', '卖出金额(CNY)', '手续费', '分红', '已实现盈亏(CNY)', '已实现收益率%', '首次买入', '最后卖出', '持有天数'];
+  const rows = stats.items.map((i) => [
+    i.code, i.name, i.status, i.costMethod, i.buyCostCNY, i.sellAmountCNY,
+    i.feesTotal, i.dividend, i.realizedProfitCNY, i.realizedReturnRate,
+    i.firstBuy || '', i.lastSell || '', i.holdDays ?? '',
+  ]);
+  return toCsv(header, rows);
+}
+
+// ---------- 持仓构造 ----------
 
 function createHolding(b) {
   const today = new Date().toISOString().slice(0, 10);
@@ -326,16 +178,22 @@ function createHolding(b) {
     region: b.region,
     type: b.type,
     strategy: b.strategy || '',
+    costMethod: normalizeCostMethod(b.costMethod),
     snapshotDate: b.snapshotDate || today,
     snapshotProfit: Number(b.snapshotProfit) || 0,
     snapshotReturnRate: Number(b.snapshotReturnRate) || 0,
     position: Number(b.position) || 0,
     purchases,
     sells: [],                      // 卖出记录（独立于买入记录）
+    dividends: [],                  // 现金分红记录
+    splits: [],                     // 送转 / 拆股记录
     // 补仓计划（持仓级）
     refillDropRate: Number(b.refillDropRate) || 0,
     refillPrice: Number(b.refillPrice) || 0,
     nextStrategy: b.nextStrategy || '',
+    // 移动止盈：持仓期最高收益率回撤该幅度即提醒（null=关闭）
+    trailingStopPct: b.trailingStopPct != null ? Number(b.trailingStopPct) : null,
+    peakReturnRate: null,
     // 日涨跌飞书告警阈值（百分比，为空=不告警）
     dailyDropAlertPct: b.dailyDropAlertPct != null ? Number(b.dailyDropAlertPct) : null,
     dailyRiseAlertPct: b.dailyRiseAlertPct != null ? Number(b.dailyRiseAlertPct) : null,
@@ -349,97 +207,110 @@ function createHolding(b) {
   return syncFromPurchases(h);
 }
 
-// 应用一笔买入/卖出交易
-function applyTransaction(h, txn) {
-  const qty = Number(txn.quantity);
-  const price = Number(txn.price);
-  if (!qty || !price) throw new Error('quantity / price 必须为正');
-
-  if (txn.type === 'BUY') {
-    h.purchases = h.purchases || [];
-    h.purchases.push(
-      normalizePurchase({
-        buyPrice: price,
-        buyQuantity: qty,
-        buyTime: txn.date,
-        targetProfitRate: h.targetProfitRate || 0,
-        stopLossRate: h.stopLossRate || 0,
-      })
-    );
-    h.status = '持有';
-  } else if (txn.type === 'SELL') {
-    // 需求 1：不修改买入记录，添加一条卖出记录
-    h.sells = h.sells || [];
-    // LIFO 计算卖出部分的成本
-    const sorted = [...(h.purchases || [])].sort((a, b) =>
-      String(b.buyTime).localeCompare(String(a.buyTime))
-    );
-    let remaining = qty;
-    let totalCost = 0;
-    for (const p of sorted) {
-      if (remaining <= 0) break;
-      const take = Math.min(remaining, Number(p.buyQuantity) || 0);
-      totalCost += take * (Number(p.buyPrice) || 0);
-      remaining -= take;
-    }
-    if (remaining > 0) throw new Error('卖出数量超过持仓数量');
-
-    const costPrice = totalCost / qty;
-    const profit = (price - costPrice) * qty;
-    const returnRate = costPrice > 0 ? ((price - costPrice) / costPrice) * 100 : 0;
-    h.sells.push({
-      id: pid(),
-      sellPrice: price,
-      sellQuantity: qty,
-      sellDate: txn.date || new Date().toISOString().slice(0, 10),
-      costPrice,
-      profit,
-      returnRate,
+async function handleApi(req, res, url, cfg) {
+  // 健康检查：公开（便于监控），不含个人持仓明细
+  if (req.method === 'GET' && url.pathname === '/api/health') {
+    const list = await loadHoldings().catch(() => []);
+    const fx = fxInfo(cfg);
+    return sendJSON(res, 200, {
+      ok: true,
+      uptimeMs: Date.now() - runtime.startedAt,
+      node: process.version,
+      holdings: { total: list.length, active: list.filter(isActive).length },
+      tick: {
+        lastAt: runtime.lastTickAt,
+        mode: runtime.lastTickMode,
+        durationMs: runtime.lastTickMs,
+        quoteOk: runtime.lastTickQuoteOk,
+        quoteFail: runtime.lastTickQuoteFail,
+      },
+      quotes: { ok: runtime.quoteOk, fail: runtime.quoteFail, lastError: runtime.lastQuoteError },
+      push: { lastAt: runtime.lastPushAt, ok: runtime.lastPushOk, error: runtime.lastPushError },
+      fx: { source: runtime.fxSource || fx.source, updatedAt: runtime.fxUpdatedAt || fx.updatedAt, error: runtime.fxError, rates: fx.rates },
+      daily: { snapshotDate: runtime.lastSnapshotDate, reportDate: runtime.lastReportDate },
+      store: storeInfo(),
+      logging: loggerInfo(),
     });
-
-    // 更新持仓状态
-    const totalBought = (h.purchases || []).reduce((s, p) => s + (Number(p.buyQuantity) || 0), 0);
-    const totalSold = (h.sells || []).reduce((s, sel) => s + (Number(sel.sellQuantity) || 0), 0);
-    h.status = totalSold >= totalBought ? '全部卖出' : '持有';
-  } else {
-    throw new Error('type 必须为 BUY 或 SELL');
   }
 
-  syncFromPurchases(h);
-  // 交易后重置触发态，下一轮重新评估
-  h.triggerState = 'IDLE';
-  h.notifiedAt = null;
-  return h;
-}
+  // 其余接口统一鉴权
+  if (!authOk(req, url, cfg)) {
+    return sendJSON(res, 401, { error: '未授权：请在 config.json 配置 auth.token 并在请求中携带' });
+  }
 
-async function handleApi(req, res, url, cfg) {
   // 列表（含币种字段与汇率配置）
   if (req.method === 'GET' && url.pathname === '/api/holdings') {
     const list = await loadHoldings();
+    const fx = fxInfo(cfg);
     return sendJSON(res, 200, {
       data: list.map(withDerived),
-      fx: { rates: getRates(cfg), source: 'config/env' },
+      fx: { rates: fx.rates, source: fx.source, updatedAt: fx.updatedAt, autoUpdate: fx.autoUpdate },
+      costMethods: COST_METHODS,
     });
   }
 
   // 收益趋势（逐日重放计算，历史收盘价来自腾讯K线/东财净值，按配置汇率折算人民币）
+  // 每日快照优先覆盖同日期（真实记录），K线重放补齐其余日期。
   // range: day(今天) | 7d(近7天) | 30d(近30天) | all(全部)
   if (req.method === 'GET' && url.pathname === '/api/trend') {
     const range = url.searchParams.get('range') || '30d';
     const days = { day: 2, '7d': 7, '30d': 30, all: 0 }[range] ?? 30;
     const list = await loadHoldings();
-    const active = list.filter((h) => h.status === '持有');
+    const active = list.filter(isActive);
     const series = await buildTrend(active, cfg);
+    const snaps = await loadSnapshots().catch(() => []);
+    const merged = mergeSnapshots(series, snaps);
     const filtered = filterByDays(
-      series.dates, series.holdingProfit, series.todayProfit, series.marketValue, days
+      merged.dates, merged.holdingProfit, merged.todayProfit, merged.marketValue, days
     );
     return sendJSON(res, 200, {
       ...filtered,
       currency: 'CNY',
       rates: series.rates,
       skipped: series.skipped,
+      snapshots: snaps.length,
       range,
     });
+  }
+
+  // 每日快照列表
+  if (req.method === 'GET' && url.pathname === '/api/snapshots') {
+    const snaps = await loadSnapshots();
+    const range = url.searchParams.get('range') || 'all';
+    const days = { '30d': 30, '90d': 90, '365d': 365, all: 0 }[range] ?? 0;
+    let out = snaps;
+    if (days > 0) {
+      const cut = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      out = snaps.filter((s) => s.date >= cut);
+    }
+    return sendJSON(res, 200, { data: out, total: snaps.length });
+  }
+
+  // 收益归因统计（已清仓表现 / 胜率 / 年度已实现收益）
+  if (req.method === 'GET' && url.pathname === '/api/stats/closed') {
+    const list = await loadHoldings();
+    const stats = buildStats(list, getRates(cfg));
+    return sendJSON(res, 200, { data: stats });
+  }
+
+  // CSV 导出：scope=trades(交易明细) | stats(收益归因) | snapshots(每日快照)
+  if (req.method === 'GET' && url.pathname === '/api/export') {
+    const scope = url.searchParams.get('scope') || 'trades';
+    const list = await loadHoldings();
+    let csv;
+    if (scope === 'stats') csv = buildStatsCsv(list, getRates(cfg));
+    else if (scope === 'snapshots') {
+      const snaps = await loadSnapshots();
+      csv = toCsv(
+        ['日期', '在仓品种', '总成本(CNY)', '总市值(CNY)', '持仓收益(CNY)', '未实现(CNY)', '累计已实现(CNY)', '今日收益(CNY)'],
+        snaps.map((s) => [s.date, s.activeCount, s.cost, s.marketValue, s.holdingProfit, s.unrealizedProfit, s.realizedProfit, s.todayProfit])
+      );
+    } else csv = buildTradesCsv(list);
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="stock-advisor-${scope}-${new Date().toISOString().slice(0, 10)}.csv"`,
+    });
+    return res.end(csv);
   }
 
   // 导入 CSV 买卖记录（按「代码」匹配，已有明细忽略，缺失插入）
@@ -455,7 +326,10 @@ async function handleApi(req, res, url, cfg) {
     const list = await loadHoldings();
     let result;
     try {
-      result = importCsvText(list, csv, { createMissing: !!body.createMissing });
+      result = importCsvText(list, csv, {
+        createMissing: !!body.createMissing,
+        costMethod: normalizeCostMethod(body.costMethod),
+      });
     } catch (e) {
       return sendJSON(res, 400, { error: e.message });
     }
@@ -478,17 +352,42 @@ async function handleApi(req, res, url, cfg) {
     return sendJSON(res, 201, { data: withDerived(h) });
   }
 
-  // 更新持仓级字段（日涨跌告警阈值等）
+  // 更新持仓级字段（告警阈值 / 成本法 / 移动止盈 / 补仓计划 / 下阶段策略）
   let m = url.pathname.match(/^\/api\/holdings\/([^/]+)$/);
   if (req.method === 'PATCH' && m) {
     const list = await loadHoldings();
     const h = list.find((x) => x.id === m[1]);
     if (!h) return sendJSON(res, 404, { error: '持仓不存在' });
     const body = await readBody(req);
-    if (body.dailyDropAlertPct !== undefined) h.dailyDropAlertPct = body.dailyDropAlertPct != null ? Number(body.dailyDropAlertPct) : null;
-    if (body.dailyRiseAlertPct !== undefined) h.dailyRiseAlertPct = body.dailyRiseAlertPct != null ? Number(body.dailyRiseAlertPct) : null;
+    const numOrNull = (v) => (v != null && v !== '' ? Number(v) : null);
+    if (body.dailyDropAlertPct !== undefined) h.dailyDropAlertPct = numOrNull(body.dailyDropAlertPct);
+    if (body.dailyRiseAlertPct !== undefined) h.dailyRiseAlertPct = numOrNull(body.dailyRiseAlertPct);
+    if (body.trailingStopPct !== undefined) {
+      h.trailingStopPct = numOrNull(body.trailingStopPct);
+      // 关闭或调整移动止盈时重置峰值基准，避免沿用旧的最高点
+      if (!(Number(h.trailingStopPct) > 0)) h.peakReturnRate = null;
+    }
+    if (body.costMethod !== undefined) h.costMethod = normalizeCostMethod(body.costMethod);
+    if (body.refillDropRate !== undefined) h.refillDropRate = Number(body.refillDropRate) || 0;
+    if (body.refillPrice !== undefined) h.refillPrice = Number(body.refillPrice) || 0;
+    if (body.nextStrategy !== undefined) h.nextStrategy = String(body.nextStrategy || '');
+    if (body.targetProfitRate !== undefined) h.targetProfitRate = Number(body.targetProfitRate) || 0;
+    if (body.stopLossRate !== undefined) h.stopLossRate = Number(body.stopLossRate) || 0;
+    if (body.strategy !== undefined) h.strategy = String(body.strategy || '');
     // 重置每日告警标记，让下次触发立即推送
     h.dailyAlertSentDate = null;
+    syncFromPurchases(h);
+    await saveHoldings(list);
+    return sendJSON(res, 200, { data: withDerived(h) });
+  }
+
+  // 用当前成本法重算历史卖出成本（口径变更后使用；会改写历史成本，需显式调用）
+  m = url.pathname.match(/^\/api\/holdings\/([^/]+)\/recompute$/);
+  if (req.method === 'POST' && m) {
+    const list = await loadHoldings();
+    const h = list.find((x) => x.id === m[1]);
+    if (!h) return sendJSON(res, 404, { error: '持仓不存在' });
+    recomputeSells(h);
     await saveHoldings(list);
     return sendJSON(res, 200, { data: withDerived(h) });
   }
@@ -510,13 +409,11 @@ async function handleApi(req, res, url, cfg) {
     h.purchases.push(p);
     h.status = '持有';
     syncFromPurchases(h);
-    h.triggerState = 'IDLE';
-    h.notifiedAt = null;
     await saveHoldings(list);
     return sendJSON(res, 200, { data: withDerived(h) });
   }
 
-  // 修改某条买入记录的止盈/止亏比例
+  // 修改某条买入记录（价格/数量/日期/手续费/止盈止损）
   m = url.pathname.match(/^\/api\/holdings\/([^/]+)\/purchases\/([^/]+)$/);
   if (req.method === 'PATCH' && m) {
     const list = await loadHoldings();
@@ -533,7 +430,8 @@ async function handleApi(req, res, url, cfg) {
       const v = Number(body.buyQuantity);
       if (v > 0) p.buyQuantity = v;
     }
-    if (body.buyTime !== undefined && body.buyTime) p.buyTime = body.buyTime;
+    if (body.buyTime !== undefined && body.buyTime) p.buyTime = dateKey(body.buyTime);
+    if (body.fee !== undefined) p.fee = Number(body.fee) || 0;
     if (body.targetProfitRate !== undefined) p.targetProfitRate = Number(body.targetProfitRate) || 0;
     if (body.stopLossRate !== undefined) p.stopLossRate = Number(body.stopLossRate) || 0;
     syncFromPurchases(h);
@@ -550,12 +448,12 @@ async function handleApi(req, res, url, cfg) {
     h.purchases = (h.purchases || []).filter((x) => x.id !== m[2]);
     if (h.purchases.length === before) return sendJSON(res, 404, { error: '买入记录不存在' });
     syncFromPurchases(h);
-    if (h.purchases.length === 0) h.status = '已卖出';
+    if (h.purchases.length === 0) h.status = '全部卖出';
     await saveHoldings(list);
     return sendJSON(res, 200, { data: withDerived(h) });
   }
 
-  // 对已有持仓追加买入/卖出记录（兼容旧接口）
+  // 追加交易（BUY / SELL / DIVIDEND / SPLIT）
   m = url.pathname.match(/^\/api\/holdings\/([^/]+)\/transactions$/);
   if (req.method === 'POST' && m) {
     const list = await loadHoldings();
@@ -567,6 +465,57 @@ async function handleApi(req, res, url, cfg) {
     } catch (e) {
       return sendJSON(res, 400, { error: e.message });
     }
+    await saveHoldings(list);
+    return sendJSON(res, 200, { data: withDerived(h) });
+  }
+
+  // 修改交易记录（卖出手续费 / 分红金额 / 送转比例 / 日期 / 备注）
+  m = url.pathname.match(/^\/api\/holdings\/([^/]+)\/transactions\/([^/]+)$/);
+  if (req.method === 'PATCH' && m) {
+    const list = await loadHoldings();
+    const h = list.find((x) => x.id === m[1]);
+    if (!h) return sendJSON(res, 404, { error: '持仓不存在' });
+    const id = m[2];
+    const body = await readBody(req);
+    const sell = (h.sells || []).find((x) => x.id === id);
+    const div = (h.dividends || []).find((x) => x.id === id);
+    const split = (h.splits || []).find((x) => x.id === id);
+    if (!sell && !div && !split) return sendJSON(res, 404, { error: '交易记录不存在' });
+    if (sell) {
+      if (body.fee !== undefined) sell.fee = Number(body.fee) || 0;
+      if (body.price !== undefined && Number(body.price) > 0) sell.sellPrice = Number(body.price);
+      if (body.quantity !== undefined && Number(body.quantity) > 0) sell.sellQuantity = Number(body.quantity);
+      if (body.date !== undefined && body.date) sell.sellDate = dateKey(body.date);
+    }
+    if (div) {
+      if (body.amount !== undefined && Number(body.amount) > 0) div.amount = Number(body.amount);
+      if (body.fee !== undefined) div.fee = Number(body.fee) || 0;
+      if (body.date !== undefined && body.date) div.date = dateKey(body.date);
+      if (body.note !== undefined) div.note = String(body.note || '');
+    }
+    if (split) {
+      if (body.ratio !== undefined && Number(body.ratio) > 0) split.ratio = Number(body.ratio);
+      if (body.date !== undefined && body.date) split.date = dateKey(body.date);
+      if (body.note !== undefined) split.note = String(body.note || '');
+    }
+    syncFromPurchases(h);
+    await saveHoldings(list);
+    return sendJSON(res, 200, { data: withDerived(h) });
+  }
+
+  // 删除交易记录（卖出 / 分红 / 送转）
+  if (req.method === 'DELETE' && m) {
+    const list = await loadHoldings();
+    const h = list.find((x) => x.id === m[1]);
+    if (!h) return sendJSON(res, 404, { error: '持仓不存在' });
+    const id = m[2];
+    const before = (h.sells || []).length + (h.dividends || []).length + (h.splits || []).length;
+    h.sells = (h.sells || []).filter((x) => x.id !== id);
+    h.dividends = (h.dividends || []).filter((x) => x.id !== id);
+    h.splits = (h.splits || []).filter((x) => x.id !== id);
+    const after = (h.sells || []).length + (h.dividends || []).length + (h.splits || []).length;
+    if (after === before) return sendJSON(res, 404, { error: '交易记录不存在' });
+    syncFromPurchases(h);
     await saveHoldings(list);
     return sendJSON(res, 200, { data: withDerived(h) });
   }
@@ -596,6 +545,7 @@ async function handleApi(req, res, url, cfg) {
 export function startServer(cfg) {
   const port = cfg.server?.port ?? 3000;
   const host = cfg.server?.host ?? '127.0.0.1';
+  const token = String(cfg?.auth?.token || '').trim();
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -610,13 +560,17 @@ export function startServer(cfg) {
       res.writeHead(404);
       res.end('not found');
     } catch (e) {
-      console.error('[server]', e.message);
+      logger.error('[server]', e.message);
       if (!res.headersSent) sendJSON(res, 500, { error: e.message });
     }
   });
 
   server.listen(port, host, () => {
-    console.log(`前端页面已启动: http://${host}:${port}`);
+    const authNote = token
+      ? '已启用接口鉴权（auth.token）'
+      : '未启用接口鉴权（如需局域网/公网访问，请在 config.json 设置 auth.token）';
+    logger.info(`前端页面已启动: http://${host}:${port}`);
+    logger.info(`安全提示：${authNote}`);
   });
   return server;
 }

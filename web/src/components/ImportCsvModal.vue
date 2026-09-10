@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue';
-import { useHoldings } from '../composables/useHoldings.js';
+import { useHoldings, apiFetch } from '../composables/useHoldings.js';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -55,7 +55,7 @@ async function submit() {
   error.value = '';
   result.value = null;
   try {
-    const res = await fetch('/api/import-csv', {
+    const res = await apiFetch('/api/import-csv', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ csv: csvText.value, createMissing: createMissing.value }),
@@ -91,7 +91,7 @@ function close() {
           >
             <span class="mb-1 text-3xl">📄</span>
             <span class="text-sm font-medium">{{ fileName || '点击选择 CSV 文件' }}</span>
-            <span class="mt-1 text-xs opacity-50">支持 代码 / 操作(买入·卖出) / 买入日期 / 买入数量 / 买入价 等列</span>
+            <span class="mt-1 text-xs opacity-50">支持 代码 / 操作(买入·卖出·分红·送转) / 日期 / 数量 / 价格 / 手续费 等列</span>
             <input type="file" accept=".csv,text/csv" class="hidden" @change="handleFile" />
           </label>
 
@@ -145,7 +145,7 @@ function close() {
             <div class="mb-1 font-medium text-warning">匹配不到持仓（{{ result.missing.length }} 条）</div>
             <ul class="max-h-28 list-inside list-disc space-y-0.5 overflow-y-auto text-xs opacity-80">
               <li v-for="(m, i) in result.missing" :key="i">
-                [{{ m.oper === 'BUY' ? '买入' : '卖出' }}] {{ m.name || m.code }}（{{ m.date }} 数量={{ m.qty }} 价格={{ m.price }}）
+                [{{ { BUY: '买入', SELL: '卖出', DIVIDEND: '分红', SPLIT: '送转' }[m.oper] || m.oper }}] {{ m.name || m.code }}（{{ m.date }} 数量={{ m.qty }} 价格={{ m.price }}）
               </li>
             </ul>
             <p v-if="!createMissing" class="mt-1 text-xs opacity-60">可重新勾选「自动新建持仓」后再导入。</p>

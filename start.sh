@@ -80,9 +80,19 @@ else
   # ========== 生产模式 ==========
   log_step "启动生产模式"
 
-  # 构建前端（如果 dist/ 不存在）
-  if [ ! -d dist ]; then
-    log_info "未检测到 dist/，正在构建前端..."
+  # 构建前端（dist/ 不存在，或 web/ 源码比构建产物新时重建）
+  NEED_BUILD=0
+  if [ ! -d dist ] || [ ! -f dist/index.html ]; then
+    NEED_BUILD=1
+  else
+    # web/ 下任一源文件比 dist/index.html 新 → 需要重建
+    if [ -n "$(find web -type f -newer dist/index.html 2>/dev/null | head -n 1)" ]; then
+      NEED_BUILD=1
+    fi
+  fi
+
+  if [ "$NEED_BUILD" = "1" ]; then
+    log_info "正在构建前端（首次或源码有更新）..."
     npm run build
     log_info "构建完成"
   else

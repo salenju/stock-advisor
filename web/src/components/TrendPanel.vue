@@ -4,6 +4,7 @@ import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+import { apiFetch } from '../composables/useHoldings.js';
 
 echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer]);
 
@@ -46,7 +47,7 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await fetch(`/api/trend?range=${range.value}`);
+    const res = await apiFetch(`/api/trend?range=${range.value}`);
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || '加载失败');
     data.value = json;
@@ -144,7 +145,7 @@ onBeforeUnmount(() => {
     <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
       <div>
         <div class="text-sm font-semibold">收益趋势分析</div>
-        <div class="text-xs opacity-50">按配置汇率折算人民币（历史点同用当前汇率）</div>
+        <div class="text-xs opacity-50">折合人民币；同一日期优先用当日收盘快照，其余按 K 线重放补齐</div>
       </div>
       <div class="flex flex-wrap items-center gap-1.5">
         <button

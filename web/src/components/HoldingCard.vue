@@ -1,35 +1,45 @@
 <script setup>
-import { ref, nextTick } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import {
   fmtMoney, fmtPrice, fmtQty, fmtPct, fmt, profitCls,
   regionBadge, strategyBadge, triggerBadge,
 } from '../composables/useFormat.js';
 import { useHoldings } from '../composables/useHoldings.js';
+import { COST_METHODS } from '../constants/options.js';
 import PurchaseTable from './PurchaseTable.vue';
 
 const props = defineProps({
   holding: { type: Object, required: true },
 });
 
-const emit = defineEmits(['open-txn', 'open-add-buy', 'edit-buy', 'delete-buy']);
+const emit = defineEmits(['open-txn', 'open-add-buy', 'edit-buy', 'delete-buy', 'delete-txn']);
 
-const { updateHolding } = useHoldings();
+const { updateHolding, recomputeHolding } = useHoldings();
 
 const expanded = ref(false);
 function toggleExpand() {
   expanded.value = !expanded.value;
 }
 
-// ---------- 日涨跌告警行内编辑 ----------
+const costMethodLabel = computed(() => {
+  const m = COST_METHODS.find((x) => x.value === props.holding.costMethod);
+  return m ? m.short : props.holding.costMethod || 'LIFO';
+});
+
+// ---------- 日涨跌告警 + 移动止盈 行内编辑 ----------
 const editingAlert = ref(false);
 const editDrop = ref('');
 const editRise = ref('');
+const editTrailing = ref('');
+const editCostMethod = ref('LIFO');
 const alertMsg = ref('');
 const dropInput = ref(null);
 
 function startEditAlert() {
   editDrop.value = props.holding.dailyDropAlertPct != null ? String(props.holding.dailyDropAlertPct) : '';
   editRise.value = props.holding.dailyRiseAlertPct != null ? String(props.holding.dailyRiseAlertPct) : '';
+  editTrailing.value = props.holding.trailingStopPct != null ? String(props.holding.trailingStopPct) : '';
+  editCostMethod.value = props.holding.costMethod || 'LIFO';
   alertMsg.value = '';
   editingAlert.value = true;
   nextTick(() => dropInput.value?.focus());
@@ -44,6 +54,8 @@ async function saveAlert() {
   const body = {};
   body.dailyDropAlertPct = editDrop.value !== '' ? Number(editDrop.value) : null;
   body.dailyRiseAlertPct = editRise.value !== '' ? Number(editRise.value) : null;
+  body.trailingStopPct = editTrailing.value !== '' ? Number(editTrailing.value) : null;
+  body.costMethod = editCostMethod.value;
   try {
     await updateHolding(props.holding.id, body);
     editingAlert.value = false;
@@ -51,6 +63,10 @@ async function saveAlert() {
   } catch (e) {
     alertMsg.value = e.message;
   }
+}
+
+async function onClickRecompute() {
+  await recomputeHolding(props.holding.id, props.holding.name);
 }
 </script>
 
@@ -78,13 +94,17 @@ async function saveAlert() {
             <span class="badge badge-s badge-primary text-white">{{ holding.type }}</span>
             <span class="badge badge-s text-white" :class="strategyBadge(holding.strategy).cls">{{ strategyBadge(holding.strategy).text }}</span>
             <span class="badge badge-s text-white" :class="triggerBadge(holding.triggerState).cls">{{ triggerBadge(holding.triggerState).text }}</span>
+            <span class="badge badge-s badge-neutral" :title="`成本核算方法：${costMethodLabel}`">{{ costMethodLabel }}</span>
+            <span v-if="holding.inconsistentSell" class="badge badge-s badge-error" title="卖出记录与买入明细无法完全匹配（可能手工改过文件），建议核对">明细异常</span>
           </div>
           <div class="mt-1 font-mono text-xs opacity-60">{{ holding.code }}</div>
         </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button @click="emit('open-add-buy')" class="btn btn-success btn-xs">+ 买入记录</button>
         <button @click="emit('open-txn', 'SELL')" class="btn btn-error btn-xs">+ 卖出记录</button>
+        <button @click="emit('open-txn', 'DIVIDEND')" class="btn btn-warning btn-xs">+ 分红</button>
+        <button @click="emit('open-txn', 'SPLIT')" class="btn btn-info btn-xs">+ 送转</button>
       </div>
     </div>
 
@@ -128,24 +148,49 @@ async function saveAlert() {
       </div>
       <div>
         <div class="text-xs opacity-60">
-          日跌告警 / 日涨告警
-          <button v-if="!editingAlert" @click="startEditAlert" class="ml-1 align-middle text-primary hover:text-primary/70" title="设置告警阈值">✎</button>
+          告警设置
+          <button v-if="!editingAlert" @click="startEditAlert" class="ml-1 align-middle text-primary hover:text-primary/70" title="设置日涨跌告警 / 移动止盈 / 成本法">✎</button>
         </div>
         <div v-if="editingAlert" class="mt-0.5 flex flex-wrap items-center gap-1">
           <input ref="dropInput" v-model="editDrop" type="number" step="0.1" class="input input-bordered input-xs w-14 tabular-nums" placeholder="跌%" @keyup.enter="saveAlert" @keyup.escape="cancelAlert" />
           <span class="opacity-40">/</span>
           <input v-model="editRise" type="number" step="0.1" class="input input-bordered input-xs w-14 tabular-nums" placeholder="涨%" @keyup.enter="saveAlert" @keyup.escape="cancelAlert" />
+          <input v-model="editTrailing" type="number" step="0.1" class="input input-bordered input-xs w-16 tabular-nums" placeholder="回撤%" title="移动止盈：从持仓期最高收益率回撤该幅度即提醒" @keyup.enter="saveAlert" @keyup.escape="cancelAlert" />
+          <select v-model="editCostMethod" class="select select-bordered select-xs tabular-nums">
+            <option v-for="m in COST_METHODS" :key="m.value" :value="m.value">{{ m.short }}</option>
+          </select>
           <button @click="saveAlert" class="text-success hover:text-success/70 font-bold text-sm leading-none" title="保存">✓</button>
           <button @click="cancelAlert" class="text-error hover:text-error/70 font-bold text-sm leading-none" title="取消">✕</button>
           <span v-if="alertMsg" class="text-xs text-error">{{ alertMsg }}</span>
         </div>
-        <div v-else class="mt-0.5 tabular-nums">
+        <div v-else class="mt-0.5 tabular-nums text-xs">
           <span v-if="holding.dailyDropAlertPct != null || holding.dailyRiseAlertPct != null">
             <span class="text-success">-{{ fmt(holding.dailyDropAlertPct) }}%</span> / <span class="text-error">+{{ fmt(holding.dailyRiseAlertPct) }}%</span>
           </span>
-          <span v-else class="opacity-40">未设置</span>
+          <span v-else class="opacity-40">日涨跌未设置</span>
+          <span class="opacity-40"> · </span>
+          <span v-if="Number(holding.trailingStopPct) > 0" :title="`持仓期最高收益率 ${fmt(holding.peakReturnRate)}%`">
+            移动止盈 {{ fmt(holding.trailingStopPct) }}%
+          </span>
+          <span v-else class="opacity-40">移动止盈关</span>
         </div>
       </div>
+    </div>
+
+    <!-- 次要指标：已实现收益 / 分红 / 手续费 -->
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-base-300 px-3 py-2 text-xs sm:px-4">
+      <span class="opacity-70">
+        已实现收益：
+        <b class="tabular-nums" :class="profitCls(holding.realizedProfit)">{{ holding.currencyCode }} {{ fmtMoney(holding.realizedProfit) }}</b>
+      </span>
+      <span class="opacity-70">累计分红：<b class="tabular-nums">{{ holding.currencyCode }} {{ fmtMoney(holding.dividendTotal) }}</b></span>
+      <span class="opacity-70">手续费合计：<b class="tabular-nums">{{ holding.currencyCode }} {{ fmtMoney(holding.feesTotal) }}</b></span>
+      <span v-if="Number(holding.trailingStopPct) > 0" class="opacity-70">
+        峰值收益率：<b class="tabular-nums">{{ fmt(holding.peakReturnRate) }}%</b>
+      </span>
+      <span v-if="holding.costMethod === 'WAC' || holding.costMethod === 'FIFO'" class="opacity-70">
+        <button @click="onClickRecompute" class="text-primary hover:underline" title="按当前成本法重算历史卖出成本（会改写历史记录）">按当前成本法重算历史成本</button>
+      </span>
     </div>
 
     <!-- 买入明细（可折叠） -->
@@ -154,6 +199,7 @@ async function saveAlert() {
         :holding="holding"
         @edit="(p) => emit('edit-buy', p)"
         @delete="(p) => emit('delete-buy', p)"
+        @delete-txn="(p) => emit('delete-txn', p)"
       />
     </div>
   </div>

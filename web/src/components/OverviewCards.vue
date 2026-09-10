@@ -8,10 +8,12 @@ const props = defineProps({
   totalMarket: { type: Number, default: 0 },
   totalTodayProfit: { type: Number, default: 0 },
   totalHoldingProfit: { type: Number, default: 0 },
+  totalRealizedProfit: { type: Number, default: 0 },
   costByCurrency: { type: Object, default: () => ({}) },       // 分币种小计
   marketByCurrency: { type: Object, default: () => ({}) },
   todayProfitByCurrency: { type: Object, default: () => ({}) },
   holdingProfitByCurrency: { type: Object, default: () => ({}) },
+  realizedProfitByCurrency: { type: Object, default: () => ({}) },
   fxRates: { type: Object, default: () => ({ CNY: 1 }) },      // 汇率配置
 });
 
@@ -50,10 +52,11 @@ const costTip = computed(() => buildTip('总成本', props.costByCurrency));
 const marketTip = computed(() => buildTip('总市值', props.marketByCurrency));
 const todayTip = computed(() => buildTip('今日收益', props.todayProfitByCurrency));
 const holdingTip = computed(() => buildTip('持仓收益', props.holdingProfitByCurrency));
+const realizedTip = computed(() => buildTip('累计已实现收益', props.realizedProfitByCurrency));
 </script>
 
 <template>
-  <div class="mb-4 grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:mb-6 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
+  <div class="mb-4 grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:mb-6 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
     <div class="rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4">
       <div class="text-xs opacity-60">持仓数</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{{ count }}</div>
@@ -119,6 +122,22 @@ const holdingTip = computed(() => buildTip('持仓收益', props.holdingProfitBy
             <span class="shrink-0 opacity-70">{{ line.label }}</span><span class="truncate tabular-nums">{{ line.text }}</span>
           </div>
           <div v-if="holdingTip.rates" class="mt-1.5 border-t border-base-300 pt-1.5 opacity-60">{{ holdingTip.rates }}</div>
+        </div>
+      </details>
+    </div>
+    <div class="relative min-w-0 rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4">
+      <div class="text-xs opacity-60">累计已实现收益（含分红）</div>
+      <div class="mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl" :class="profitCls(totalRealizedProfit)" :title="'CNY ' + fmtMoney(totalRealizedProfit)">
+        {{ fmtMoney(totalRealizedProfit) }}
+      </div>
+      <details class="dropdown dropdown-end absolute right-2 top-2">
+        <summary class="cursor-pointer rounded-full px-1 text-sm opacity-40 transition hover:opacity-100" title="按币种查看小计">ⓘ</summary>
+        <div class="dropdown-content z-10 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-base-300 bg-base-100 p-3 text-xs shadow-lg">
+          <div class="mb-1.5 font-semibold">{{ realizedTip.title }}</div>
+          <div v-for="line in realizedTip.lines" :key="line.c" class="flex items-baseline justify-between gap-2 py-0.5">
+            <span class="shrink-0 opacity-70">{{ line.label }}</span><span class="truncate tabular-nums">{{ line.text }}</span>
+          </div>
+          <div v-if="realizedTip.rates" class="mt-1.5 border-t border-base-300 pt-1.5 opacity-60">{{ realizedTip.rates }}</div>
         </div>
       </details>
     </div>

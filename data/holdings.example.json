@@ -1,0 +1,42 @@
+[
+  {
+    "id": "h_example_0001",
+    "name": "示例·易方达蓝筹精选",
+    "code": "005827",
+    "status": "持有",
+    "region": "sh",
+    "type": "股票型基金",
+    "strategy": "long",
+    "costMethod": "LIFO",
+    "snapshotDate": "2026-07-17",
+    "snapshotProfit": 0,
+    "snapshotReturnRate": 0,
+    "position": 0,
+    "purchases": [
+      {
+        "id": "p_example_0001",
+        "buyPrice": 3.0335,
+        "buyQuantity": 1000,
+        "buyTime": "2026-01-13",
+        "fee": 1.5,
+        "targetProfitRate": 20,
+        "stopLossRate": 20
+      }
+    ],
+    "dividends": [],
+    "splits": [],
+    "sells": [],
+    "refillDropRate": 10,
+    "refillPrice": 0,
+    "nextStrategy": "分批补仓",
+    "trailingStopPct": null,
+    "dailyDropAlertPct": null,
+    "dailyRiseAlertPct": null,
+    "dailyAlertSentDate": null,
+    "currentPrice": null,
+    "prevClose": null,
+    "lastUpdated": null,
+    "triggerState": "IDLE",
+    "notifiedAt": null
+  }
+]
