@@ -561,7 +561,10 @@ export function startServer(cfg) {
       res.end('not found');
     } catch (e) {
       logger.error('[server]', e.message);
-      if (!res.headersSent) sendJSON(res, 500, { error: e.message });
+      if (!res.headersSent) {
+        // 请求体 JSON 非法属客户端错误，返回 400 而非 500
+        sendJSON(res, e.message === 'invalid json' ? 400 : 500, { error: e.message });
+      }
     }
   });
 
