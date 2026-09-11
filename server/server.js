@@ -58,7 +58,8 @@ const MIME = {
 };
 
 // 入口类文件不缓存：装成 App 后才能及时拿到新版本（Service Worker / 清单 / HTML）
-const NO_CACHE = new Set(['/sw.js', '/manifest.webmanifest', '/index.html']);
+// 注：清单文件名用 manifest.json（GitHub Pages 等静态托管对 .webmanifest 的 MIME 不可控）
+const NO_CACHE = new Set(['/sw.js', '/manifest.json', '/manifest.webmanifest', '/index.html']);
 
 // 托管前端静态产物：先尝试精确文件路径，否则回退到 index.html（SPA 兜底）
 async function serveStatic(res, url) {

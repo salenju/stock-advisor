@@ -1,0 +1,64 @@
+name: Deploy to GitHub Pages
+
+# 纯静态部署：前端 + 本地数据模式（数据存在访问者的浏览器里，仓库里没有任何个人数据）。
+# 因为不依赖后端，所以直接部署到 GitHub Pages 即可完整使用「持仓 / 交易 / 复盘 / CSV / 实时行情」。
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一分支只保留最新一次部署
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 单元测试
+        run: pnpm test
+
+      - name: 构建（本地数据模式 + 子路径 base）
+        env:
+          # 关键①：不依赖后端，数据只存浏览器
+          VITE_DATA_MODE: local
+          # 关键②：项目站点地址是 https://<user>.github.io/<repo>/，base 必须是 /<repo>/
+          # 用自定义域名时把它改成 '/'（或删掉这一行）
+          VITE_BASE: /${{ github.event.repository.name }}/
+        run: pnpm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -13,7 +13,8 @@
     "import:csv:new": "node server/import-csv.js --create-missing",
     "test": "node --test",
     "check:layout": "node layout-check.mjs",
-    "check:local": "node local-mode-check.mjs"
+    "check:local": "node local-mode-check.mjs",
+    "check:pages": "node pages-check.mjs"
   },
   "engines": {
     "node": ">=18"

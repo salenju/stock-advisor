@@ -10,7 +10,10 @@ createApp(App).mount('#app');
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
+      // 用 BASE_URL 拼路径：根路径部署得到 '/sw.js'，子路径部署（GitHub Pages 的 /<repo>/）
+      // 得到 '/<repo>/sw.js'；不传 scope，默认就是 sw.js 所在目录（与部署路径一致）
+      const swUrl = `${import.meta.env.BASE_URL}sw.js`;
+      const reg = await navigator.serviceWorker.register(swUrl, { updateViaCache: 'none' });
       // 发现新版本：让等待中的 SW 立即接管，随后刷新一次页面
       reg.addEventListener('updatefound', () => {
         const sw = reg.installing;

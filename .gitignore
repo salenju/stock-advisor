@@ -9,11 +9,9 @@ dist/
 .workbuddy/
 
 # ---- 本地私密配置与个人数据（禁止入库）----
-# config.json 含飞书 webhook / secret，data/ 含个人投资明细。
-# 模板请参考 config.example.json 与 data/holdings.example.json。
+# config.json 含飞书 webhook / secret；data/ 含个人投资明细（持仓、交易、快照、备份）。
+# 整目录忽略，只保留模板：config.example.json 与 data/holdings.example.json。
 config.json
-data/*.json
-data/*.csv
-data/backups/
-logs/
+data/*
 !data/holdings.example.json
+logs/

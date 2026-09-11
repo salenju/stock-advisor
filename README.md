@@ -52,7 +52,33 @@ pkill -f "server/index.js"     # 或按脚本名精准停止
 - Service Worker 只在生产构建（`npm run build` / `./start.sh`）后注册；`./start.sh dev` 开发模式不注册，避免缓存干扰热更新。
 - `/api/*` 接口请求不经过缓存，始终拉取实时行情与持仓；离线时仅能打开界面并展示最近一次缓存数据。
 
-相关文件：`web/public/manifest.webmanifest`（应用清单）、`web/public/sw.js`（离线缓存）、`web/public/icon*.png|svg`（图标）。
+相关文件：`web/public/manifest.json`（应用清单，用 `.json` 而非 `.webmanifest` 是为了兼容 GitHub Pages 等对 MIME 不可控的静态托管）、`web/public/sw.js`（离线缓存）、`web/public/icon*.png|svg`（图标）。
+
+### 部署到 GitHub Pages（纯静态）
+
+因为前端自带「本地数据模式」（数据存访问者的浏览器），**不需要任何后端**，可以直接部署到 GitHub Pages。
+
+**前提**：用本地数据模式 + 子路径 base 构建（项目站点地址是 `https://<user>.github.io/<repo>/`，base 必须是 `/<repo>/`）。
+
+```bash
+# 本地等价命令（构建到 dist/ 后把 dist 内容推到 gh-pages 分支即可）
+VITE_DATA_MODE=local VITE_BASE=/<你的仓库名>/ npm run build
+npm run check:pages   # 本地模拟 /<repo>/ 子路径部署并自动校验（资源 404 / manifest / 可安装 / SW 作用域）
+```
+
+**自动部署**：仓库已内置 `.github/workflows/pages.yml`，推送到 `main`/`master` 即自动构建并发布。只需在仓库里做一次设置：
+
+> **Settings → Pages → Source 选「GitHub Actions」**
+
+工作流会自动注入 `VITE_BASE=/${{ github.event.repository.name }}/` 与 `VITE_DATA_MODE=local`，所以**不需要改代码**。
+
+注意：
+
+- 免费账号的 Pages 要求**仓库公开**。本方案下仓库里没有任何个人数据（`config.json`、`data/*.json` 已在 `.gitignore`），持仓只存在访问者自己的浏览器里，因此公开仓库**不会泄露隐私**。
+- 用**自定义域名**时把工作流里的 `VITE_BASE` 改成 `/`（或删掉该行）。
+- 每个访问者的浏览器都是**独立的一份空数据**：适合自己用（打开后用「🗄 数据」导入自己的备份）；别人看到的是空库，不会看到你的持仓。
+- 本地数据模式下**收益趋势图与飞书推送不可用**（依赖后端的 K 线重放与推送通道），页面会给出说明。
+- 子路径部署下 PWA 依旧可安装：`manifest.json` 与图标都用相对路径、Service Worker 作用域为 `/<repo>/` —— 已由 `npm run check:pages` 实测验证。
 
 ### 数据放在哪：两种数据模式
 
@@ -143,8 +169,9 @@ CSV 需包含列：`代码`、`操作`、`日期`、`数量`、`价格`。可选
 
 ### 安全（重要）
 
-- `config.json` 与 `data/*.json` 含**飞书密钥与个人投资明细**，已在 `.gitignore` 中排除，请勿提交到仓库。
+- `config.json` 与整个 `data/` 目录含**飞书密钥与个人投资明细**（持仓、交易、快照、备份），已在 `.gitignore` 中**整目录排除**，
   仓库内只保留模板 `config.example.json` 与 `data/holdings.example.json`。
+- 如果曾经把 `data/` 里的文件提交过，`.gitignore` 不会把它们从**历史**里删掉，需要额外处理（见下方「数据与隐私」）。
 - 默认监听 `127.0.0.1`（仅本机可访问）。若需局域网/公网访问：
   1. 设置 `config.json` 的 `auth.token` 为一段随机字符串；
   2. 设置 `server.host` 为 `0.0.0.0`；
@@ -232,6 +259,7 @@ CSV 需包含列：`代码`、`操作`、`日期`、`数量`、`价格`。可选
 ```bash
 npm test              # node:test 单元 + 集成测试（52 项）
 npm run check:local   # 本地数据模式端到端检查（无头 Chrome：导入→行情→持久化→导出→回滚→切模式）
+npm run check:pages   # 子路径部署检查（VITE_BASE=/<repo>/ 构建 + 模拟 GitHub Pages 托管 + 可安装性）
 npm run check:layout  # 移动端布局度量检查（无头 Chrome）
 ```
 

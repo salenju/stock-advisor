@@ -24,8 +24,23 @@
 - 验证：`npm test`（52 项，server 侧再导出后全绿）、`npm run check:local`（`local-mode-check.mjs`，无头 Chrome 跑导入→双行情链路→持久化→导出→备份回滚→切回服务端，9 项全过）、`npm run check:layout`。
 - 收尾提醒：`./start.sh` 或已有的 node 进程需**重启**才用上新代码。
 
+## 仓库与数据入库策略（2026-09-11）
+- 远端：`https://github.com/salenju/stock-advisor.git`，当前分支 `feat/optimization-p0-p2`（已推送）。
+- `.gitignore` 已把 **`data/` 整目录**忽略（写法为 `data/*` + `!data/holdings.example.json`；不能用 `data/` 目录模式，否则「例外文件」无法重新纳入），另 `config.json`、`logs/`、`dist/` 也忽略。
+- ⚠️ 历史遗留：`data/holdings-0724备份.json`、`data/holdings-备份20260728.json`、`data/买入-卖出记录 - Sheet1.csv` 曾被提交（提交 `4231b0d`、`1f433ae`），**已在工作区 `git rm --cached` 取消跟踪（未提交）**，但它们在 **git 历史和远端分支上仍然存在**。若仓库要公开（GitHub Pages 免费版需公开仓库），必须重写历史（`git filter-repo --invert-paths --path ...`）或直接删除重建仓库。
+- 用户偏好：个人数据一律不入库，数据放本地、靠导出/导入 JSON 迁移。
+
+## GitHub Pages 部署（2026-09-11 打通）
+- 结论：**纯静态可部署**（因为没有后端依赖，靠本地数据模式）。已补齐三处硬阻塞并实测通过。
+- `vite.config.js` 加了 `base: process.env.VITE_BASE || '/'`（子路径部署/自定义域名只改环境变量，不改代码）。
+- `web/index.html`、`web/public/manifest.json` 内部链接**全部改为相对路径**（`manifest.json`/`icon.svg`/`./`/`./?tab=stats`），`sw.js` 用 `new URL(self.registration.scope).pathname` 推导 BASE，`main.js` 用 `import.meta.env.BASE_URL` 注册 SW（不传 scope，默认即部署目录）。→ 根路径与 `/<repo>/` 子路径都能用，同一份代码。
+- 清单从 `manifest.webmanifest` **改名为 `manifest.json`**：GitHub Pages 等静态托管不能自定义 MIME，`.webmanifest` 有被当成 octet-stream 的风险（Chrome 也接受 application/json 的清单）。`server/server.js` 的 NO_CACHE 已同时包含两个名字。
+- 新增 `.github/workflows/pages.yml`：pnpm（仓库只有 pnpm-lock.yaml，无 package-lock.json）→ `pnpm test` → `pnpm run build`（注入 `VITE_DATA_MODE=local` 与 `VITE_BASE=/${{ github.event.repository.name }}/`）→ upload-pages-artifact → deploy-pages。仓库需在 Settings → Pages 把 Source 设为 GitHub Actions。
+- 新增 `pages-check.mjs`（`npm run check:pages`）：用 VITE_BASE 构建 → 拷到 /tmp/gh-pages-preview/<repo>/ → 最小 Node 静态服务 → 无头 Chrome 校验「资源无 404 / manifest 解析 / installabilityErrors 为空 / SW 作用域 = /<repo>/」。当前全绿。
+- 注意：GH Pages 免费需公开仓库，但仓库内无个人数据（config.json、data/*.json 已 gitignore），持仓只在访客浏览器；每个访客是独立空库；本地模式下趋势图与飞书不可用。
+
 ## PWA（2026-09-11 新增）
-- 手写 PWA，未引入 `vite-plugin-pwa`：`web/public/{manifest.webmanifest,sw.js,icon.svg,icon-maskable.svg,icon-192.png,icon-512.png,icon-maskable-512.png,apple-touch-icon.png,favicon-32.png}`。
+- 手写 PWA，未引入 `vite-plugin-pwa`：`web/public/{manifest.json,sw.js,icon.svg,icon-maskable.svg,icon-192.png,icon-512.png,icon-maskable-512.png,apple-touch-icon.png,favicon-32.png}`。
 - SW 策略：导航网络优先（离线回退 shell）；静态资源缓存优先；`/api/*` 不接管。仅在 `import.meta.env.PROD` 注册。
 - 安装入口：`web/src/composables/usePwa.js` + `AppHeader.vue` 的「📲 安装 App」按钮 + `App.vue` 的 iOS 引导条；页签支持 `?tab=stats` 深链（也是 manifest 快捷方式）。
 - 后端 `serveStatic` 已补 `.webmanifest` MIME，`/sw.js`、`/manifest.webmanifest`、`/index.html` 为 no-cache，`/assets/*` 为 immutable。

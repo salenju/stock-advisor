@@ -6,6 +6,9 @@ import vue from '@vitejs/plugin-vue';
 // 开发时 `npm run dev` 启动 Vite 开发服务器并代理 /api 到本地后端（:3000）。
 export default defineConfig({
   root: 'web',
+  // base：部署在子路径时用它指定前缀，例如 GitHub Pages 项目站点是 /<repo>/。
+  // 本地开发与「后端托管 dist（根路径）」保持默认 '/'；CI 里通过 VITE_BASE 注入。
+  base: process.env.VITE_BASE || '/',
   plugins: [vue()],
   build: {
     outDir: '../dist',
