@@ -1,7 +1,11 @@
 import { readFile, writeFile, stat, mkdir, readdir, unlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import crypto from 'node:crypto';
+import { migrateHolding, dataSignature } from '../web/src/core/schema.js';
+
+// schema（旧版本迁移 / 变更指纹）已抽到前后端共享模块：web/src/core/schema.js
+// 本地数据模式（浏览器 IndexedDB）用的是同一份实现，保证两种模式数据形态一致。
+export { migrateHolding };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '..', 'data');
@@ -38,29 +42,9 @@ async function getMtime() {
 
 // ---------- 自动备份 ----------
 
-// 运行时易变字段：不参与"交易数据是否变化"的判断，
-// 否则每轮行情刷新都会产生一份备份（20s 一份，很快撑爆磁盘）。
-const VOLATILE_KEYS = new Set([
-  'currentPrice',
-  'prevClose',
-  'lastUpdated',
-  'triggerState',
-  'notifiedAt',
-  'dailyAlertSentDate',
-  'peakReturnRate',
-]);
-
-// 交易数据指纹：剥离易变字段后取 md5
-function signatureOf(list) {
-  const stripped = (list || []).map((h) => {
-    const o = {};
-    for (const [k, v] of Object.entries(h || {})) {
-      if (!VOLATILE_KEYS.has(k)) o[k] = v;
-    }
-    return o;
-  });
-  return crypto.createHash('md5').update(JSON.stringify(stripped)).digest('hex');
-}
+// 交易数据指纹：剥离运行时易变字段（行情/提醒状态）后取哈希，
+// 用于「只有交易数据真的变了才产生一份备份」。实现与前端共享，结果一致。
+const signatureOf = dataSignature;
 
 function stamp(d = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
@@ -103,58 +87,7 @@ async function backupBeforeWrite() {
 }
 
 // ---------- 迁移 ----------
-
-// 旧版持仓为扁平结构（单条买入）；迁移为「多次买入记录」模型。
-// 迁移会在首次加载时写入磁盘，之后始终以 purchases 模型持久化。
-// 同时补齐后续版本新增字段（backwards-compatible，只增不改语义）。
-export function migrateHolding(h) {
-  let out = h;
-
-  // v1 → v2：扁平买入 → purchases[]
-  if (!Array.isArray(out.purchases)) {
-    const p = {
-      id: 'p' + (out.id || 'x') + '0',
-      buyPrice: Number(out.buyPrice) || 0,
-      buyQuantity: Number(out.buyQuantity) || 0,
-      buyTime: out.buyTime || out.snapshotDate || new Date().toISOString().slice(0, 10),
-      // 旧版仅有全局止盈(targetProfitRate)；止亏缺省 0（不触发止损）
-      targetProfitRate: Number(out.targetProfitRate) || 0,
-      stopLossRate: Number(out.stopLossRate) || 0,
-      fee: 0,
-    };
-    out = { ...out, purchases: [p] };
-  }
-
-  // v2 → v3：手续费 / 分红 / 送转 / 成本法 / 移动止盈
-  let changed =
-    out.purchases.some((p) => p.fee == null) ||
-    !Array.isArray(out.sells) ||
-    !Array.isArray(out.dividends) ||
-    !Array.isArray(out.splits) ||
-    out.costMethod == null ||
-    out.trailingStopPct === undefined;
-
-  if (changed) {
-    out = {
-      ...out,
-      purchases: out.purchases.map((p) => ({ ...p, fee: Number(p.fee) || 0 })),
-      sells: (out.sells || []).map((s) => ({ ...s, fee: Number(s.fee) || 0 })),
-      dividends: out.dividends || [],
-      splits: out.splits || [],
-      costMethod: out.costMethod || 'LIFO',
-      trailingStopPct: out.trailingStopPct ?? null,
-      peakReturnRate: out.peakReturnRate ?? null,
-    };
-  }
-
-  // 统一历史状态值：'已卖出' → '全部卖出'
-  if (out.status === '已卖出') {
-    out = { ...out, status: '全部卖出' };
-    changed = true;
-  }
-
-  return changed ? out : h;
-}
+// migrateHolding 由 web/src/core/schema.js 提供（本文件顶部已再导出）。
 
 export async function loadHoldings() {
   const mtime = await getMtime();

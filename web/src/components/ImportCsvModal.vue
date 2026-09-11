@@ -1,13 +1,13 @@
 <script setup>
 import { ref, watch } from 'vue';
-import { useHoldings, apiFetch } from '../composables/useHoldings.js';
+import { useHoldings } from '../composables/useHoldings.js';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
 });
 const emit = defineEmits(['close', 'imported']);
 
-const { fetchHoldings } = useHoldings();
+const { fetchHoldings, importCsv } = useHoldings();
 
 const fileName = ref('');
 const csvText = ref('');
@@ -55,14 +55,8 @@ async function submit() {
   error.value = '';
   result.value = null;
   try {
-    const res = await apiFetch('/api/import-csv', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ csv: csvText.value, createMissing: createMissing.value }),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || '导入失败');
-    result.value = json.data;
+    // 两种数据模式走同一入口：服务端模式打 /api/import-csv，本地模式在浏览器内直接导入
+    result.value = await importCsv(csvText.value, { createMissing: createMissing.value });
     await fetchHoldings();
     emit('imported');
   } catch (e) {

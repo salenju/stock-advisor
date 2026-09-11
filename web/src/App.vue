@@ -3,7 +3,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { REFRESH_MS, REGION_LABEL } from './constants/options.js';
 import { useTheme } from './composables/useTheme.js';
 import { usePwa } from './composables/usePwa.js';
-import { useHoldings, apiFetch, getAuthToken, setAuthToken } from './composables/useHoldings.js';
+import { useHoldings, getAuthToken, setAuthToken } from './composables/useHoldings.js';
+import { dataSource, isLocalMode, currentMode } from './services/dataSource.js';
 
 import AppHeader from './components/AppHeader.vue';
 import OverviewCards from './components/OverviewCards.vue';
@@ -15,6 +16,7 @@ import AddHoldingModal from './components/AddHoldingModal.vue';
 import TransactionModal from './components/TransactionModal.vue';
 import BuyRecordModal from './components/BuyRecordModal.vue';
 import ImportCsvModal from './components/ImportCsvModal.vue';
+import DataModal from './components/DataModal.vue';
 
 const { isDark, initTheme, toggleTheme } = useTheme();
 const { canInstall, showIosGuide, init: initPwa, install: installPwa, dismissIosTip } = usePwa();
@@ -25,6 +27,10 @@ const {
   costByCurrency, marketByCurrency, todayProfitByCurrency, holdingProfitByCurrency, realizedProfitByCurrency,
   fetchHoldings, refreshNow, startAutoRefresh, stopAutoRefresh, deletePurchase, deleteTransaction,
 } = useHoldings();
+
+// ---------- 数据模式 ----------
+// 本地 = 数据只存本机浏览器；服务端 = 沿用原来的 Node 接口。切换会整页刷新。
+const dataMode = currentMode();
 
 // ---------- 页签 ----------
 // 支持 ?tab=stats 直达复盘统计（manifest 快捷方式 / 收藏链接可用）
@@ -53,7 +59,8 @@ function closeInstallTip() {
 
 // ---------- 接口鉴权（仅在收到 401 提示时出现）----------
 const tokenInput = ref(getAuthToken());
-const needToken = computed(() => /未授权/.test(error.value));
+// 鉴权只与「服务端数据」模式有关；本地数据模式没有 token 概念
+const needToken = computed(() => !isLocalMode() && /未授权/.test(error.value));
 function saveToken() {
   setAuthToken(tokenInput.value);
   refreshNow();
@@ -72,9 +79,7 @@ async function testFeishu() {
   testing.value = true;
   testMsg.value = '';
   try {
-    const res = await apiFetch('/api/test-feishu', { method: 'POST' });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || '发送失败');
+    await dataSource().testFeishu();
     testMsg.value = '已发送测试消息到飞书 ✓';
   } catch (e) {
     testMsg.value = e.message;
@@ -90,6 +95,7 @@ const showAdd = ref(false);
 const showTxn = ref(false);
 const showBuy = ref(false);
 const showImport = ref(false);
+const showData = ref(false);
 const txn = ref({ id: '', name: '', type: 'BUY', price: '', quantity: '', date: '' });
 const buyForm = ref({ id: '', name: '', pid: '', buyPrice: '', buyQuantity: '', buyTime: '', targetProfitRate: '', stopLossRate: '', fee: '' });
 
@@ -163,7 +169,7 @@ const filteredHoldings = computed(() => {
 
 // 汇率来源提示文案
 const fxNote = computed(() => {
-  const src = { env: '环境变量', live: '自动更新', config: 'config.json', default: '内置默认值' }[fxInfo.value.source] || fxInfo.value.source;
+  const src = { env: '环境变量', live: '自动更新', config: 'config.json', local: '本地设置', default: '内置默认值' }[fxInfo.value.source] || fxInfo.value.source;
   if (!src) return '';
   const day = fxInfo.value.updatedAt ? String(fxInfo.value.updatedAt).slice(0, 10) : '';
   return `汇率来源：${src}${day ? `（${day}）` : ''}`;
@@ -192,6 +198,8 @@ onUnmounted(() => {
       :testing="testing"
       :test-msg="testMsg"
       :can-install="canInstall"
+      :feishu-enabled="!isLocalMode()"
+      :mode-label="dataMode === 'local' ? '🔒 本地数据' : '🖥️ 服务端数据'"
       :ring-c="RING_C"
       :ring-offset="ringOffset"
       @toggle-theme="toggleTheme"
@@ -200,6 +208,7 @@ onUnmounted(() => {
       @install="handleInstall"
       @add="showAdd = true"
       @import-csv="showImport = true"
+      @open-data="showData = true"
     />
 
     <main class="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6">
@@ -303,5 +312,6 @@ onUnmounted(() => {
     <TransactionModal :show="showTxn" :txn="txn" @close="showTxn = false" />
     <BuyRecordModal :show="showBuy" :buy-form="buyForm" @close="showBuy = false" />
     <ImportCsvModal :show="showImport" @close="showImport = false" />
+    <DataModal :show="showData" @close="showData = false" @changed="fetchHoldings" />
   </div>
 </template>

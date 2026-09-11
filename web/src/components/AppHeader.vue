@@ -10,11 +10,13 @@ defineProps({
   testing: { type: Boolean, default: false },
   testMsg: { type: String, default: '' },
   canInstall: { type: Boolean, default: false },
+  feishuEnabled: { type: Boolean, default: true },
+  modeLabel: { type: String, default: '' },
   ringC: { type: Number, required: true },
   ringOffset: { type: Number, required: true },
 });
 
-const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'import-csv', 'install']);
+const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'import-csv', 'install', 'open-data']);
 </script>
 
 <template>
@@ -24,6 +26,7 @@ const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'impo
         <h1 class="text-lg font-semibold tracking-tight sm:text-xl">📈 股票秘书</h1>
         <p class="mt-0.5 truncate text-xs opacity-60">
           持仓 · 实时行情 · 飞书阈值提醒
+          <span v-if="modeLabel" class="ml-2 rounded-full bg-base-200 px-2 py-0.5 text-[11px] font-medium">{{ modeLabel }}</span>
           <span v-if="lastUpdated" class="ml-2 hidden sm:inline">· 更新于 {{ lastUpdated }}</span>
           <span v-if="loading" class="ml-2 text-info">刷新中…</span>
           <span class="ml-2 inline-flex items-center gap-1 opacity-60">
@@ -46,6 +49,12 @@ const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'impo
           class="btn btn-ghost btn-circle btn-xs sm:btn-sm"
         >{{ isDark ? '☀️' : '🌙' }}</button>
         <button
+          @click="emit('open-data')"
+          class="btn btn-xs sm:btn-sm"
+          style="background-color: #7c3aed; border-color: #7c3aed;"
+          title="数据存放位置、导出备份、导入与回滚"
+        >🗄 数据</button>
+        <button
           @click="emit('import-csv')"
           class="btn btn-xs text-white sm:btn-sm"
           style="background-color: #f40; border-color: #f40;"
@@ -53,6 +62,7 @@ const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'impo
         >导入 CSV</button>
         <button @click="emit('refresh')" class="btn btn-info btn-xs sm:btn-sm">刷新</button>
         <button
+          v-if="feishuEnabled"
           @click="emit('test-feishu')"
           :disabled="testing"
           :title="testing ? '发送中…' : '向飞书机器人发送一条测试消息'"

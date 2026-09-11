@@ -7,6 +7,9 @@ import { sendCard } from './notifier.js';
 import { importCsvText } from './import-csv-core.js';
 import { getRates, fxInfo } from './provider/fx.js';
 import { buildTrend, filterByDays } from './trend.js';
+// 以下两块逻辑已抽到前后端共享模块，服务端只做 HTTP 适配
+import { buildCsv } from '../web/src/core/csv.js';
+import { createHolding } from '../web/src/core/schema.js';
 import {
   withDerived,
   syncFromPurchases,
@@ -130,99 +133,9 @@ function authOk(req, url, cfg) {
   return bearer === expect || header === expect || query === expect;
 }
 
-// ---------- CSV 导出 ----------
-
-function csvCell(v) {
-  const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function toCsv(header, rows) {
-  // 加 BOM 便于 Excel 正确识别中文
-  return '\uFEFF' + [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
-}
-
-function buildTradesCsv(holdings) {
-  const header = ['代码', '名称', '地区', '类型', '操作', '日期', '价格', '数量', '手续费', '成本价', '盈亏', '收益率%'];
-  const rows = [];
-  for (const h of holdings) {
-    const d = withDerived(h);
-    for (const p of d.purchases) {
-      rows.push([h.code, h.name, h.region, h.type, '买入', dateKey(p.buyTime), p.buyPrice, p.buyQuantity, p.fee || 0, '', '', '']);
-    }
-    for (const s of d.sells) {
-      rows.push([h.code, h.name, h.region, h.type, '卖出', s.buyTime, s.buyPrice, s.buyQuantity, s.fee || 0, s.cost, s.profit, s.returnRate]);
-    }
-    for (const v of d.dividends) {
-      rows.push([h.code, h.name, h.region, h.type, '分红', v.buyTime, '', '', v.fee || 0, '', v.profit, '']);
-    }
-  }
-  rows.sort((a, b) => String(a[5]).localeCompare(String(b[5])));
-  return toCsv(header, rows);
-}
-
-function buildStatsCsv(holdings, rates) {
-  const stats = buildStats(holdings, rates);
-  const header = ['代码', '名称', '状态', '成本法', '买入成本(CNY)', '卖出金额(CNY)', '手续费', '分红', '已实现盈亏(CNY)', '已实现收益率%', '首次买入', '最后卖出', '持有天数'];
-  const rows = stats.items.map((i) => [
-    i.code, i.name, i.status, i.costMethod, i.buyCostCNY, i.sellAmountCNY,
-    i.feesTotal, i.dividend, i.realizedProfitCNY, i.realizedReturnRate,
-    i.firstBuy || '', i.lastSell || '', i.holdDays ?? '',
-  ]);
-  return toCsv(header, rows);
-}
-
-// ---------- 持仓构造 ----------
-
-function createHolding(b) {
-  const today = new Date().toISOString().slice(0, 10);
-  const required = ['name', 'code', 'region', 'type'];
-  for (const k of required) {
-    if (!b[k] || !String(b[k]).trim()) throw new Error(`缺少字段: ${k}`);
-  }
-
-  // 允许「先建仓、后补买入记录」：purchases 可空，买入价/数量由「买入记录」补充
-  let purchases = [];
-  if (Array.isArray(b.purchases) && b.purchases.length) {
-    purchases = b.purchases.map((p) => normalizePurchase(p));
-  }
-
-  const h = {
-    id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    name: String(b.name).trim(),
-    code: String(b.code).trim(),
-    status: '持有',
-    region: b.region,
-    type: b.type,
-    strategy: b.strategy || '',
-    costMethod: normalizeCostMethod(b.costMethod),
-    snapshotDate: b.snapshotDate || today,
-    snapshotProfit: Number(b.snapshotProfit) || 0,
-    snapshotReturnRate: Number(b.snapshotReturnRate) || 0,
-    position: Number(b.position) || 0,
-    purchases,
-    sells: [],                      // 卖出记录（独立于买入记录）
-    dividends: [],                  // 现金分红记录
-    splits: [],                     // 送转 / 拆股记录
-    // 补仓计划（持仓级）
-    refillDropRate: Number(b.refillDropRate) || 0,
-    refillPrice: Number(b.refillPrice) || 0,
-    nextStrategy: b.nextStrategy || '',
-    // 移动止盈：持仓期最高收益率回撤该幅度即提醒（null=关闭）
-    trailingStopPct: b.trailingStopPct != null ? Number(b.trailingStopPct) : null,
-    peakReturnRate: null,
-    // 日涨跌飞书告警阈值（百分比，为空=不告警）
-    dailyDropAlertPct: b.dailyDropAlertPct != null ? Number(b.dailyDropAlertPct) : null,
-    dailyRiseAlertPct: b.dailyRiseAlertPct != null ? Number(b.dailyRiseAlertPct) : null,
-    dailyAlertSentDate: null,
-    currentPrice: null,
-    prevClose: null,
-    lastUpdated: null,
-    triggerState: 'IDLE',
-    notifiedAt: null,
-  };
-  return syncFromPurchases(h);
-}
+// ---------- CSV 导出 / 持仓构造 ----------
+// 两块的实现已抽到前后端共享模块（web/src/core/csv.js 与 web/src/core/schema.js），
+// 本地数据模式与这里用的是同一份代码，避免口径分叉。
 
 async function handleApi(req, res, url, cfg) {
   // 健康检查：公开（便于监控），不含个人持仓明细
@@ -314,15 +227,8 @@ async function handleApi(req, res, url, cfg) {
   if (req.method === 'GET' && url.pathname === '/api/export') {
     const scope = url.searchParams.get('scope') || 'trades';
     const list = await loadHoldings();
-    let csv;
-    if (scope === 'stats') csv = buildStatsCsv(list, getRates(cfg));
-    else if (scope === 'snapshots') {
-      const snaps = await loadSnapshots();
-      csv = toCsv(
-        ['日期', '在仓品种', '总成本(CNY)', '总市值(CNY)', '持仓收益(CNY)', '未实现(CNY)', '累计已实现(CNY)', '今日收益(CNY)'],
-        snaps.map((s) => [s.date, s.activeCount, s.cost, s.marketValue, s.holdingProfit, s.unrealizedProfit, s.realizedProfit, s.todayProfit])
-      );
-    } else csv = buildTradesCsv(list);
+    const snaps = scope === 'snapshots' ? await loadSnapshots() : [];
+    const csv = buildCsv(scope, { holdings: list, snapshots: snaps, rates: getRates(cfg) });
     res.writeHead(200, {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="stock-advisor-${scope}-${new Date().toISOString().slice(0, 10)}.csv"`,

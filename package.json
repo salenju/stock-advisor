@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "import:csv": "node server/import-csv.js",
     "import:csv:new": "node server/import-csv.js --create-missing",
-    "test": "node --test"
+    "test": "node --test",
+    "check:layout": "node layout-check.mjs",
+    "check:local": "node local-mode-check.mjs"
   },
   "engines": {
     "node": ">=18"

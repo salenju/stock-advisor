@@ -4,7 +4,7 @@ import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
-import { apiFetch } from '../composables/useHoldings.js';
+import { dataSource } from '../services/dataSource.js';
 
 echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer]);
 
@@ -22,6 +22,7 @@ const RANGES = [
 const range = ref('30d');
 const loading = ref(false);
 const error = ref('');
+const unsupported = ref(''); // 本地数据模式下暂未迁移的能力说明
 const data = ref(null);
 
 const chartEl = ref(null);
@@ -46,13 +47,13 @@ const summary = computed(() => {
 async function load() {
   loading.value = true;
   error.value = '';
+  unsupported.value = '';
   try {
-    const res = await apiFetch(`/api/trend?range=${range.value}`);
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || '加载失败');
-    data.value = json;
+    data.value = await dataSource().trend(range.value);
   } catch (e) {
-    error.value = e.message;
+    // 本地数据模式尚未迁移「历史 K 线重放」，给出明确说明而不是报错
+    if (e.unsupported) unsupported.value = e.message;
+    else error.value = e.message;
   } finally {
     loading.value = false;
   }
@@ -172,6 +173,9 @@ onBeforeUnmount(() => {
       <!-- 图表容器常驻，确保 echarts.init 拿到稳定 DOM；无数据时用覆盖层提示 -->
       <div ref="chartEl" class="h-80 w-full" :class="{ 'opacity-0': !hasData }"></div>
       <div v-if="loading && !data" class="absolute inset-0 flex items-center justify-center text-xs opacity-50">趋势加载中…</div>
+      <div v-else-if="unsupported" class="absolute inset-0 flex items-center justify-center px-6 text-center text-xs opacity-70">
+        {{ unsupported }}
+      </div>
       <div v-else-if="error" class="absolute inset-0 flex items-center justify-center text-xs text-error">{{ error }}</div>
       <div v-else-if="!hasData" class="absolute inset-0 flex items-center justify-center text-xs opacity-50">暂无趋势数据（历史行情不可用或当前无持仓）</div>
     </div>

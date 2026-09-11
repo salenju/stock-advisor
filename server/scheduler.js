@@ -1,5 +1,5 @@
 import { loadHoldings, saveHoldings } from './store.js';
-import { fetchPrices, toTencentCode, normalizeRegion } from './provider/tencent.js';
+import { fetchPrices, toTencentCode } from './provider/tencent.js';
 import { fetchFundNavs } from './provider/fund.js';
 import { evaluate, updatePeak } from './strategy.js';
 import { sendCard } from './notifier.js';
@@ -9,75 +9,10 @@ import { buildSnapshot, upsertSnapshot, loadSnapshots, loadDailyState, saveDaily
 import { logger } from './logger.js';
 import { runtime, markPush } from './runtime.js';
 import { isActive } from './derive.js';
+import { isMarketOpen, anyMarketOpen, beijingNow, parseHHMM } from '../web/src/core/market.js';
 
-// 各市场对应时区（用于判断交易时段）
-const REGION_TZ = {
-  hk: 'Asia/Hong_Kong',
-  sh: 'Asia/Shanghai',
-  sz: 'Asia/Shanghai',
-  us: 'America/New_York',
-};
-
-// 取某时区下的本地 周几/时/分
-function marketLocal(date, tz) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: tz,
-    hour12: false,
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const get = (t) => parts.find((p) => p.type === t)?.value;
-  return {
-    isWeekend: get('weekday') === 'Sat' || get('weekday') === 'Sun',
-    h: parseInt(get('hour'), 10),
-    m: parseInt(get('minute'), 10),
-    date: `${get('year')}-${get('month')}-${get('day')}`,
-  };
-}
-
-function inRange(h, m, sH, sM, eH, eM) {
-  const t = h * 60 + m;
-  return t >= sH * 60 + sM && t <= eH * 60 + eM;
-}
-
-// 该市场当日是否为休市日（法定节假日，来自 config.schedule.marketHolidays）
-function isHoliday(region, dateStr, holidays) {
-  const list = holidays?.[region];
-  return Array.isArray(list) && list.includes(dateStr);
-}
-
-/**
- * 判断某市场此刻是否处于交易时段。
- * @param {string} region 地区前缀（hk/sh/sz/us，兼容中文标签）
- * @param {Date} date
- * @param {Object} [holidays] { sh:[], sz:[], hk:[], us:[] } 休市日 YYYY-MM-DD 列表
- */
-function isMarketOpen(region, date, holidays) {
-  region = normalizeRegion(region); // 兼容中文地区标签（港股→hk 等）
-  const tz = REGION_TZ[region];
-  if (!tz) return false;
-  const { isWeekend, h, m, date: localDate } = marketLocal(date, tz);
-  if (isWeekend) return false;
-  if (isHoliday(region, localDate, holidays)) return false;
-  if (region === 'sh' || region === 'sz')
-    return inRange(h, m, 9, 30, 11, 30) || inRange(h, m, 13, 0, 15, 0);
-  if (region === 'hk')
-    return inRange(h, m, 9, 30, 12, 0) || inRange(h, m, 13, 0, 16, 0);
-  if (region === 'us') return inRange(h, m, 9, 30, 16, 0);
-  return false;
-}
-
-// 是否有任一持仓市场当前处于交易时段
-function anyMarketOpen(holdings, now, holidays) {
-  return holdings
-    .filter(isActive)
-    .some((h) => isMarketOpen(h.region, now, holidays));
-}
-
+// 交易时段判断 + 北京时间工具已抽到前后端共享模块（web/src/core/market.js），
+// 前端「本地数据模式」用的是同一份实现，保证"是否开盘"的判定一致。
 export { isMarketOpen, anyMarketOpen };
 
 // 根据是否交易时段选择刷新间隔（秒）
@@ -85,31 +20,6 @@ function pickInterval(cfg, open) {
   return open
     ? cfg.schedule.intervalSeconds
     : cfg.schedule.offHoursIntervalSeconds ?? 300;
-}
-
-// ---------- 北京时间（用于"每日快照 / 日报"的定时判定）----------
-
-function beijingNow(date) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Shanghai',
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).formatToParts(date);
-  const get = (t) => parts.find((p) => p.type === t)?.value;
-  return {
-    date: `${get('year')}-${get('month')}-${get('day')}`,
-    minutes: parseInt(get('hour'), 10) * 60 + parseInt(get('minute'), 10),
-  };
-}
-
-function parseHHMM(s, fallback) {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || ''));
-  if (!m) return parseHHMM(fallback, '23:59');
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
 
 // ---------- 主循环 ----------

@@ -54,6 +54,37 @@ pkill -f "server/index.js"     # 或按脚本名精准停止
 
 相关文件：`web/public/manifest.webmanifest`（应用清单）、`web/public/sw.js`（离线缓存）、`web/public/icon*.png|svg`（图标）。
 
+### 数据放在哪：两种数据模式
+
+页面顶部会显示当前模式，点「**🗄 数据**」按钮可随时切换（切换会整页刷新；两种模式的数据相互独立，切换不会删除任何数据）。
+
+| 模式 | 数据位置 | 能力 |
+| --- | --- | --- |
+| **本地数据**（推荐，隐私最好） | 只在这台设备的浏览器（IndexedDB），不经过任何服务器 | 持仓 / 交易 / 复盘统计 / CSV 导入导出 / **实时行情（浏览器直连腾讯·东财）** / JSON 备份导出导入 / 自动版本快照回滚 |
+| **服务端数据** | 后端服务的 `data/holdings.json` | 上述全部 **+ 飞书推送 + 无人值守的每日快照与收盘日报 + 历史收益趋势** |
+
+**本地模式的隐私承诺**：数据只写进本机浏览器，不上传任何地方。代价是「清浏览器数据 / 换浏览器 / 换设备」会丢数据，因此请在「🗄 数据」面板定期导出 JSON 备份（超过 7 天未导出会主动提醒）。
+
+三种进入本地模式的方式（优先级从高到低）：
+
+```bash
+# 1. 网址后面加 ?mode=local 打开一次（会被记住，之后 URL 里的参数自动移除）
+http://127.0.0.1:3000/?mode=local
+
+# 2. 页面右上角「🗄 数据」→ 选择「🔒 本地数据」
+
+# 3. 构建期指定（用于把纯静态站点部署到 GitHub Pages 等）
+VITE_DATA_MODE=local npm run build
+```
+
+**从服务端搬到本地**：在服务端模式导出 `data/holdings.json` → 切到本地模式 → 「🗄 数据」→ 选择该文件 → 按「合并」导入（裸数组格式会自动识别）。
+
+**本地模式暂不支持**：收益趋势图（历史 K 线重放，Phase 2 迁移）；飞书提醒按钮会自动隐藏。
+
+> 代码结构：前后端共享的口径与算法统一放在 `web/src/core/`（成本法/统计/快照/CSV/交易时段/行情/schema 迁移），
+> `server/` 下的同名模块已改为**再导出**，避免两份实现分叉；浏览器端持久化在 `web/src/store/localStore.js`，
+> 双模式门面在 `web/src/services/dataSource.js`，数据面板在 `web/src/components/DataModal.vue`。
+
 ### 分步手动操作
 
 ```bash
@@ -153,6 +184,13 @@ CSV 需包含列：`代码`、`操作`、`日期`、`数量`、`价格`。可选
 - **持仓排序**：按市值、收益率、今日涨跌等排序（金额类按人民币折算比较）
 - **CSV 导出**：交易明细 / 归因统计 / 每日快照
 
+### 数据与隐私
+- **两种数据模式**：本地（浏览器 IndexedDB，零上传）／服务端（`data/holdings.json`，支持飞书与无人值守任务）
+- **一键导出/导入 JSON 全量备份**，导入支持「合并（按市场+代码去重）」与「覆盖」两种策略
+- **自动版本快照**：交易数据每次变化前自动留一份旧版本（最多 30 份），可在数据面板回滚
+- 超过 7 天未导出备份会自动提醒；清空本地数据需二次确认
+- 实时行情由浏览器直连（腾讯报价 + 东财基金净值），持仓数据不经过任何第三方
+
 ### 可安装（PWA）
 - 支持安装到桌面 / 手机主屏，独立窗口运行，见「[安装为 App（PWA）](#安装为-apppwa)」
 - Service Worker 缓存界面外壳与静态资源（离线可打开），`/api/*` 始终走网络取实时数据
@@ -192,8 +230,12 @@ CSV 需包含列：`代码`、`操作`、`日期`、`数量`、`价格`。可选
 ## 自动化测试
 
 ```bash
-npm test        # node:test 单元 + 集成测试（52 项）
+npm test              # node:test 单元 + 集成测试（52 项）
+npm run check:local   # 本地数据模式端到端检查（无头 Chrome：导入→行情→持久化→导出→回滚→切模式）
+npm run check:layout  # 移动端布局度量检查（无头 Chrome）
 ```
+
+> `check:*` 需要本机安装 Chrome（脚本内路径为 macOS 默认位置）并能访问行情接口。
 
 覆盖：行情代码规范化/解析、币种换算与分币种汇总、收益趋势逐日重放、CSV 导入匹配与幂等、真实 HTTP 接口（K线/净值打桩）、账本口径（手续费/分红/送转/三种成本法/历史成本沿用/NaN 防御）、策略阈值（含移动止盈与异常价防御）、收益归因与快照合并、旧数据迁移。手动 UI 检查清单见 `docs/自测清单.md`。
 
@@ -224,13 +266,29 @@ server/
     ├── fund.js         东财基金净值
     ├── fx.js           汇率取值优先级
     └── fx-live.js      汇率自动更新（双源互备 + 缓存）
+    ↑ 其中 derive/currency/stats/strategy/snapshot(纯函数)/import-csv-core/
+      provider/tencent 已迁到 web/src/core/，server 下仅作再导出（避免口径分叉）
 
 web/src/                Vue3 + Vite + Tailwind 前端（构建产物 dist/）
 ├── App.vue             页签（持仓总览 / 复盘统计）+ 过滤 + 弹窗编排
-├── composables/        useHoldings（数据与鉴权）/ useFormat / useTheme
+├── core/               ★ 前后端共享的纯逻辑（浏览器与 Node 均可用）
+│   ├── derive.js       账本唯一口径：成本法/手续费/分红/送转/持仓聚合
+│   ├── stats.js        收益归因统计
+│   ├── strategy.js     策略阈值：止盈/止损/补仓/移动止盈
+│   ├── snapshot.js     每日快照生成与合并（纯函数）
+│   ├── market.js       各市场交易时段判断（时区/周末/节假日）
+│   ├── rates.js        汇率解析（本地设置）
+│   ├── quote.js        前端行情：腾讯实时报价 + 东财基金净值（script 注入）
+│   ├── schema.js       持仓 schema：新建默认值 / 旧版本迁移 / 变更指纹
+│   ├── csv.js          CSV 生成与下载
+│   ├── import-csv-core.js CSV 导入核心
+│   └── provider/tencent.js 腾讯行情（CORS 已实测可用，浏览器可直连）
+├── store/localStore.js ★ 本地数据模式的持久化：IndexedDB + 自动版本快照 + 导入导出
+├── services/dataSource.js ★ 双模式门面（local / server），业务代码只依赖它
+├── composables/        useHoldings（数据与鉴权）/ useFormat / useTheme / usePwa
 ├── constants/options.js 枚举（策略/地区/类型/成本法/交易类型）
 └── components/         概览卡、分布饼图、趋势、持仓列表/卡片、明细表、
-                        复盘统计、新增持仓、交易、买入记录、CSV 导入
+                        复盘统计、新增持仓、交易、买入记录、CSV 导入、数据面板
 
 data/                   holdings.json（个人数据，不入库）+ snapshots.json
                         + backups/（自动备份）+ fx-cache.json + daily-state.json
