@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { REFRESH_MS, REGION_LABEL } from './constants/options.js';
 import { useTheme } from './composables/useTheme.js';
+import { usePwa } from './composables/usePwa.js';
 import { useHoldings, apiFetch, getAuthToken, setAuthToken } from './composables/useHoldings.js';
 
 import AppHeader from './components/AppHeader.vue';
@@ -16,6 +17,7 @@ import BuyRecordModal from './components/BuyRecordModal.vue';
 import ImportCsvModal from './components/ImportCsvModal.vue';
 
 const { isDark, initTheme, toggleTheme } = useTheme();
+const { canInstall, showIosGuide, init: initPwa, install: installPwa, dismissIosTip } = usePwa();
 const {
   holdings, lastUpdated, loading, error, countdown,
   fxRates, fxInfo,
@@ -25,7 +27,29 @@ const {
 } = useHoldings();
 
 // ---------- 页签 ----------
-const tab = ref('holdings');
+// 支持 ?tab=stats 直达复盘统计（manifest 快捷方式 / 收藏链接可用）
+const initialTab = new URLSearchParams(window.location.search).get('tab');
+const tab = ref(initialTab === 'stats' ? 'stats' : 'holdings');
+function setTab(v) {
+  tab.value = v;
+  const url = new URL(window.location.href);
+  if (v === 'holdings') url.searchParams.delete('tab');
+  else url.searchParams.set('tab', v);
+  window.history.replaceState({}, '', url);
+}
+
+// ---------- 安装 App（PWA）----------
+const iosTipOpen = ref(false);
+const showInstallTip = computed(() => showIosGuide.value || iosTipOpen.value);
+async function handleInstall() {
+  const accepted = await installPwa();
+  // 浏览器无原生安装流程（如 iOS Safari）时，展开「添加到主屏幕」图文引导
+  if (!accepted && showIosGuide.value) iosTipOpen.value = true;
+}
+function closeInstallTip() {
+  iosTipOpen.value = false;
+  dismissIosTip();
+}
 
 // ---------- 接口鉴权（仅在收到 401 提示时出现）----------
 const tokenInput = ref(getAuthToken());
@@ -147,6 +171,7 @@ const fxNote = computed(() => {
 
 onMounted(() => {
   initTheme();
+  initPwa();
   fetchHoldings();
   startAutoRefresh();
 });
@@ -166,16 +191,31 @@ onUnmounted(() => {
       :is-dark="isDark"
       :testing="testing"
       :test-msg="testMsg"
+      :can-install="canInstall"
       :ring-c="RING_C"
       :ring-offset="ringOffset"
       @toggle-theme="toggleTheme"
       @refresh="refreshNow"
       @test-feishu="testFeishu"
+      @install="handleInstall"
       @add="showAdd = true"
       @import-csv="showImport = true"
     />
 
     <main class="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6">
+      <!-- 安装引导（iOS Safari 无原生安装弹窗，需手动「添加到主屏幕」） -->
+      <div v-if="showInstallTip" class="mb-4 rounded-xl border border-accent/50 bg-accent/10 p-3 text-xs">
+        <div class="mb-1 flex items-center justify-between gap-2">
+          <span class="font-medium">把「股票秘书」装到主屏幕，像 App 一样打开</span>
+          <button @click="closeInstallTip" class="rounded px-1.5 text-base leading-none opacity-60 hover:opacity-100" title="不再提示">×</button>
+        </div>
+        <ol class="ml-4 list-decimal space-y-0.5 opacity-80">
+          <li>用 Safari 打开本页，点底部「分享」按钮 <span class="font-medium">⬆︎</span></li>
+          <li>在弹出菜单里选择「添加到主屏幕」</li>
+          <li>点右上角「添加」，桌面会出现「股票秘书」图标</li>
+        </ol>
+      </div>
+
       <!-- 鉴权提示（仅 401 时出现） -->
       <div v-if="needToken" class="mb-4 rounded-xl border border-warning/50 bg-warning/10 p-3 text-xs">
         <div class="mb-2 opacity-80">该服务已启用接口鉴权，请填入 config.json 中设置的 <code>auth.token</code>：</div>
@@ -188,12 +228,12 @@ onUnmounted(() => {
       <!-- 页签 -->
       <div class="mb-4 flex items-center gap-1.5">
         <button
-          @click="tab = 'holdings'"
+          @click="setTab('holdings')"
           class="rounded-full px-3.5 py-1.5 text-sm font-medium transition"
           :class="tab === 'holdings' ? 'bg-sky-600 text-white shadow-sm' : 'border border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200'"
         >持仓总览</button>
         <button
-          @click="tab = 'stats'"
+          @click="setTab('stats')"
           class="rounded-full px-3.5 py-1.5 text-sm font-medium transition"
           :class="tab === 'stats' ? 'bg-sky-600 text-white shadow-sm' : 'border border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200'"
         >复盘统计</button>

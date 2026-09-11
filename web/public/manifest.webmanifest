@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "股票秘书 · 持仓与行情助手",
+  "short_name": "股票秘书",
+  "description": "持仓记录 + 实时行情 + 收益归因 + 飞书阈值提醒，可安装到桌面/手机主屏。",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#171717",
+  "theme_color": "#5548ff",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "持仓总览", "short_name": "持仓", "url": "/" },
+    { "name": "复盘统计", "short_name": "复盘", "url": "/?tab=stats" }
+  ]
+}

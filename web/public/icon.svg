@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="股票秘书">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5548ff" />
+      <stop offset="1" stop-color="#3369ff" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)" />
+  <g fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 上升折线 -->
+    <polyline points="104,340 200,244 268,312 386,194" />
+    <!-- 箭头 -->
+    <polyline points="318,186 396,184 398,262" />
+  </g>
+</svg>

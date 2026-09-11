@@ -39,15 +39,23 @@ const DIST = join(__dirname, '..', 'dist');
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8', // PWA 清单
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
+  '.txt': 'text/plain; charset=utf-8',
 };
+
+// 入口类文件不缓存：装成 App 后才能及时拿到新版本（Service Worker / 清单 / HTML）
+const NO_CACHE = new Set(['/sw.js', '/manifest.webmanifest', '/index.html']);
 
 // 托管前端静态产物：先尝试精确文件路径，否则回退到 index.html（SPA 兜底）
 async function serveStatic(res, url) {
@@ -58,14 +66,23 @@ async function serveStatic(res, url) {
     const st = await stat(filePath);
     if (st.isFile()) {
       const body = await readFile(filePath);
-      res.writeHead(200, { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream' });
+      const headers = { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream' };
+      if (NO_CACHE.has(pathname)) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        // Service Worker 放在根目录，允许其接管全站（安装后可离线打开）
+        if (pathname === '/sw.js') headers['Service-Worker-Allowed'] = '/';
+      } else if (pathname.startsWith('/assets/')) {
+        // Vite 产物文件名带内容 hash，可长期强缓存
+        headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+      }
+      res.writeHead(200, headers);
       return res.end(body);
     }
   } catch {
     // 文件不存在，回退到 index.html
   }
   const html = await readFile(join(DIST, 'index.html'));
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' });
   res.end(html);
 }
 

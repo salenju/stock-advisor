@@ -9,11 +9,12 @@ defineProps({
   isDark: { type: Boolean, default: true },
   testing: { type: Boolean, default: false },
   testMsg: { type: String, default: '' },
+  canInstall: { type: Boolean, default: false },
   ringC: { type: Number, required: true },
   ringOffset: { type: Number, required: true },
 });
 
-const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'import-csv']);
+const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'import-csv', 'install']);
 </script>
 
 <template>
@@ -33,6 +34,12 @@ const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'impo
       </div>
       <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
         <span v-if="error" class="w-full text-xs text-error sm:w-auto">{{ error }}</span>
+        <button
+          v-if="canInstall"
+          @click="emit('install')"
+          class="btn btn-accent btn-xs sm:btn-sm"
+          title="把「股票秘书」安装到桌面 / 主屏幕，像 App 一样打开"
+        >📲 安装 App</button>
         <button
           @click="emit('toggle-theme')"
           :title="isDark ? '切换到浅色' : '切换到深色'"

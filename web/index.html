@@ -2,8 +2,23 @@
 <html lang="zh-CN" data-theme="stockdark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>股票秘书</title>
+    <meta name="description" content="股票秘书：持仓记录 + 实时行情 + 收益归因复盘 + 飞书阈值提醒，可安装到桌面/手机主屏。" />
+
+    <!-- PWA：可安装 + 离线打开 -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#171717" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- iOS：添加到主屏后全屏运行 -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="股票秘书" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
   </head>
   <body>
     <div id="app"></div>

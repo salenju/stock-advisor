@@ -51,9 +51,9 @@ onMounted(() => {
   <div class="space-y-4">
     <!-- 导出 -->
     <div class="flex flex-wrap items-center gap-2">
-      <button @click="doExport('trades', '交易明细')" class="btn btn-sm btn-outline" :disabled="exporting === 'trades'">导出交易明细 CSV</button>
-      <button @click="doExport('stats', '归因统计')" class="btn btn-sm btn-outline" :disabled="exporting === 'stats'">导出归因统计 CSV</button>
-      <button @click="doExport('snapshots', '每日快照')" class="btn btn-sm btn-outline" :disabled="exporting === 'snapshots'">导出每日快照 CSV</button>
+      <button @click="doExport('trades', '交易明细')" class="btn btn-sm btn-outline btn-primary" :disabled="exporting === 'trades'">导出交易明细 CSV</button>
+      <button @click="doExport('stats', '归因统计')" class="btn btn-sm btn-outline btn-info" :disabled="exporting === 'stats'">导出归因统计 CSV</button>
+      <button @click="doExport('snapshots', '每日快照')" class="btn btn-sm btn-outline btn-success" :disabled="exporting === 'snapshots'">导出每日快照 CSV</button>
       <button @click="fetchStats(); fetchSnapshots('all')" class="btn btn-sm btn-ghost" :disabled="statsLoading">↻ 刷新</button>
       <span v-if="exportMsg" class="text-xs text-success">{{ exportMsg }}</span>
     </div>
