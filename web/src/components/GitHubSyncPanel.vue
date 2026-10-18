@@ -259,9 +259,12 @@ function forget() {
         </span>
       </label>
 
-      <label class="flex items-center gap-2 sm:col-span-2">
-        <input v-model="cfg.autoPush" @change="onEdit" type="checkbox" class="checkbox checkbox-primary checkbox-xs" />
-        <span>数据有改动时自动上传（合并 1.5 秒内的连续操作，避免刷出一堆提交）</span>
+      <label class="flex items-start gap-2 sm:col-span-2">
+        <input v-model="cfg.autoPush" @change="onEdit" type="checkbox" class="checkbox checkbox-primary checkbox-xs mt-0.5" />
+        <span>
+          数据有改动时自动上传（停止操作 <b>3 分钟</b>后合并推送一次；关闭页面前会尽量补推）
+          <span class="mt-0.5 block text-[11px] opacity-50">云同步模式每分钟检查一次云端，发现其他设备的更新会在页面顶部提示</span>
+        </span>
       </label>
     </div>
 

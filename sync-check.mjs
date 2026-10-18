@@ -3,10 +3,11 @@
 // 做法：在浏览器里拦截 https://api.github.com/* 的请求，用内存里的一个「假仓库」
 // 应答 Contents API（含 CORS 预检与 sha 乐观锁）。这样就能真实验证：
 //   1. 配置面板能保存配置、测通连接，并拦住「公开仓库」
-//   2. 云同步模式下新增持仓 → 自动上传**密文**到「仓库」（1.5s 节流）
+//   2. 云同步模式下新增持仓 → 自动上传**密文**到「仓库」（3 分钟防抖；测试里用环境变量缩短）
 //   3. 换一台设备（全新浏览器 profile）→ 从云端拉取 → 数据完整恢复
 //   4. 加密口令错误时给出明确提示，且不会污染本机数据
 //   5. 不填口令时上传明文信封（供用户自救）
+//   6. 另一台设备更新云端时，页面顶部出现提示，点击可一键合并
 //
 // 跑法：npm run check:sync
 import puppeteer from 'puppeteer-core';
@@ -237,7 +238,12 @@ async function newCleanPage(browser, base, repo) {
 
 // ============================ 主流程 ============================
 console.log('构建 dist（检查的是真实构建产物，不是源码）…');
-execFileSync('npm', ['run', 'build'], { stdio: 'ignore' });
+// 自动上传默认是「停止操作 3 分钟后」，测试里缩短到 250ms，否则要等很久；
+// 云端轮询同样缩短，便于验证「另一台设备有更新」的提示。
+execFileSync('npm', ['run', 'build'], {
+  stdio: 'ignore',
+  env: { ...process.env, VITE_AUTO_PUSH_DELAY_MS: '250', VITE_REMOTE_POLL_MS: '500' },
+});
 
 const { url: base, close } = await serveDist('dist');
 
@@ -306,7 +312,7 @@ try {
   }, HOLDING_NAME);
   await sleep(200);
   await clickText(pageA, '保存');
-  await sleep(3400); // 1.5s 自动上传节流 + 请求往返
+  await sleep(3400); // 自动上传防抖（测试里 250ms）+ 请求往返
 
   const localA = await readLocalHoldings(pageA);
   check('新增持仓已写入本机', (localA.list?.length ?? 0) === 1, `${localA.list?.length ?? 0} 只`);
@@ -337,6 +343,31 @@ try {
   const restored = await readLocalHoldings(pageB);
   check('设备 B 数据已恢复', (restored.list?.length ?? 0) === 1, `${restored.list?.length ?? 0} 只`);
   check('恢复的持仓名称正确', !!restored.list?.some((h) => h.name === HOLDING_NAME));
+
+  // ============ 设备 B：其他设备的云端更新提醒 ============
+  console.log('\n— 设备 B：云端更新提醒 —');
+  // 设备 A 再推一次，制造一个 B 上次拉取后没见过的云端版本
+  await openDataPanel(pageA);
+  await clickText(pageA, '测试连接');
+  await sleep(900);
+  const shaBefore = repo.state.file?.sha;
+  await clickText(pageA, '上传到云端');
+  await sleep(1200);
+  check('设备 A 产生了新的云端版本', !!repo.state.file && repo.state.file.sha !== shaBefore, repo.state.file?.sha || '');
+
+  // B 静默轮询（测试构建里 500ms 一轮），应出现顶部提示
+  await pageB.waitForFunction(
+    () => document.body.innerText.includes('云端有来自其他设备的更新'),
+    { timeout: 6000 }
+  );
+  check('设备 B 提示云端有更新', true);
+
+  await clickText(pageB, '立即同步');
+  await sleep(2500);
+  const bSynced = await pageB.evaluate(() => document.body.innerText);
+  check('点击「立即同步」后提示消失', !bSynced.includes('云端有来自其他设备的更新'));
+  check('同步结果提示可见', /已合并云端更新|本机改动已上传/.test(bSynced));
+  check('同步后设备 B 无页面错误', errorsB.length === 0, errorsB.slice(0, 3).join(' | '));
 
   // 错误口令：应报错且不动本机数据
   console.log('\n— 设备 B：错误口令 —');

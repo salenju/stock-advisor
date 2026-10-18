@@ -4,7 +4,7 @@ import { REFRESH_MS, REGION_LABEL } from './constants/options.js';
 import { useTheme } from './composables/useTheme.js';
 import { usePwa } from './composables/usePwa.js';
 import { useHoldings } from './composables/useHoldings.js';
-import { currentMode, MODE_BADGE, MODE_LABEL } from './services/dataSource.js';
+import { currentMode, MODE_BADGE, MODE_LABEL, githubSync, resetLocalCache } from './services/dataSource.js';
 
 import AppHeader from './components/AppHeader.vue';
 import OverviewCards from './components/OverviewCards.vue';
@@ -58,6 +58,53 @@ async function handleInstall() {
 function closeInstallTip() {
   iosTipOpen.value = false;
   dismissIosTip();
+}
+
+// ---------- 云端更新提醒（另一台设备改过）----------
+// 只做只读轮询：发现云端 sha 与上次同步记录的不一致就提示，
+// 用户点「立即同步」才真正拉取合并（避免悄悄改动本机数据）。
+const remoteUpdate = ref(null);
+const syncingRemote = ref(false);
+const syncNotice = ref('');
+let stopRemoteWatch = null;
+let dismissedSha = null;
+
+function onRemoteChanged(info) {
+  if (info.sha === dismissedSha) return;
+  if (remoteUpdate.value?.sha === info.sha) return;
+  remoteUpdate.value = info;
+}
+
+function dismissRemote() {
+  dismissedSha = remoteUpdate.value?.sha || null;
+  remoteUpdate.value = null;
+}
+
+async function syncFromRemote() {
+  if (syncingRemote.value) return;
+  syncingRemote.value = true;
+  syncNotice.value = '';
+  try {
+    const r = await githubSync.syncNow();
+    resetLocalCache();
+    await fetchHoldings();
+    remoteUpdate.value = null;
+    dismissedSha = null;
+    syncNotice.value = r?.direction === 'push' ? '本机改动已上传到云端' : '已合并云端更新';
+  } catch (e) {
+    syncNotice.value = `同步失败：${e.message}`;
+  } finally {
+    syncingRemote.value = false;
+    setTimeout(() => (syncNotice.value = ''), 6000);
+  }
+}
+
+// 页面切到后台/关闭前，尽量把待推送的改动补推一次
+function flushPendingPush() {
+  githubSync.flushAutoPush();
+}
+function onVisibilityChange() {
+  if (document.visibilityState === 'hidden') flushPendingPush();
 }
 
 // ---------- 倒计时环形 ----------
@@ -155,9 +202,17 @@ onMounted(() => {
   initPwa();
   fetchHoldings();
   startAutoRefresh();
+  if (dataMode === 'github') {
+    stopRemoteWatch = githubSync.startRemoteWatch(onRemoteChanged);
+    window.addEventListener('pagehide', flushPendingPush);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
 });
 onUnmounted(() => {
   stopAutoRefresh();
+  if (stopRemoteWatch) stopRemoteWatch();
+  window.removeEventListener('pagehide', flushPendingPush);
+  document.removeEventListener('visibilitychange', onVisibilityChange);
 });
 </script>
 
@@ -195,6 +250,22 @@ onUnmounted(() => {
           <li>点右上角「添加」，桌面会出现「股票秘书」图标</li>
         </ol>
       </div>
+
+      <!-- 云端更新提醒（仅在云同步模式下轮询到其他设备的提交时出现） -->
+      <div v-if="remoteUpdate" class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border border-info/50 bg-info/10 p-3 text-xs">
+        <span class="font-medium">☁️ 云端有来自其他设备的更新</span>
+        <span v-if="remoteUpdate.savedAt" class="opacity-60">
+          （{{ remoteUpdate.savedAt.slice(0, 16).replace('T', ' ') }}）
+        </span>
+        <span class="opacity-70">同步会按「市场+代码」合并，不会删掉本机独有的持仓。</span>
+        <div class="ml-auto flex items-center gap-1.5">
+          <button @click="syncFromRemote" class="btn btn-xs btn-info" :disabled="syncingRemote">
+            {{ syncingRemote ? '同步中…' : '立即同步' }}
+          </button>
+          <button @click="dismissRemote" class="btn btn-xs btn-ghost" :disabled="syncingRemote">稍后</button>
+        </div>
+      </div>
+      <p v-if="syncNotice" class="mb-3 rounded-lg bg-base-200 px-3 py-2 text-xs">{{ syncNotice }}</p>
 
       <!-- 页签 -->
       <div class="mb-4 flex items-center gap-1.5">

@@ -164,6 +164,8 @@ async function doImport() {
     fileName.value = '';
     await refresh();
     emit('changed');
+    // JSON 导入绕过 dataSource，直接改了本地存储：云同步模式下显式补一次自动上传
+    if (isGithub) githubSync.scheduleAutoPush('导入备份');
   } catch (e) {
     err.value = e.message;
   } finally {
@@ -181,6 +183,8 @@ async function restore(id) {
     msg.value = `已回滚：持仓 ${r.holdings} 条、快照 ${r.snapshots} 条`;
     await refresh();
     emit('changed');
+    // 回滚同样绕过 dataSource，云同步模式下显式补一次自动上传
+    if (isGithub) githubSync.scheduleAutoPush('回滚版本');
   } catch (e) {
     err.value = e.message;
   } finally {

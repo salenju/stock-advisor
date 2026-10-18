@@ -190,6 +190,7 @@ export async function push(opts = {}, cfg = loadConfig()) {
 
 /**
  * 智能双向同步：
+ *   - 远端 sha 与上次同步记录不同（其他设备改过）→ 先拉后推，避免覆盖别人的改动
  *   - 远程比本地新 → 先拉后推（合并后统一写回）
  *   - 本地比远程新 → 直接推
  *   - 从未同步过   → 先试拉（仓库里已有数据就合并进来），再推
@@ -219,8 +220,12 @@ export async function syncNow(cfg = loadConfig()) {
   const localInfo = await local.storageInfo();
   const localAt = localInfo.updatedAt || null;
   const remoteIsNewer = remoteAt && (!localAt || new Date(remoteAt) > new Date(localAt));
+  // 远端 sha 与上次同步记录的不一致 → 云端一定有了本机没合并过的版本。
+  // 此时即使本机时间更晚也要先拉后推，否则会把别人的改动覆盖掉。
+  const lastSha = loadState().lastSha;
+  const remoteChanged = !!remote.sha && !!lastSha && remote.sha !== lastSha;
 
-  if (remoteIsNewer) {
+  if (remoteChanged || remoteIsNewer) {
     const pulled = await pull(cfg);
     const pushed = await push({ reason: '合并云端新数据' }, cfg);
     return { direction: 'merge', ...pushed, pulled };
@@ -236,30 +241,123 @@ export async function testConnection(cfg = loadConfig()) {
   return res;
 }
 
-// —— 自动推送（节流）—————————————————————————————————————
-// 本地每次写操作后调用；合并 1.5s 内的连续改动，只推一次，避免刷屏提交。
+// —— 自动推送（防抖）—————————————————————————————————————
+// 本地每次写操作后调用；只有「停止操作 AUTO_PUSH_DELAY_MS」后才推一次，
+// 避免连续编辑 / CSV 导入 / 行情刷新刷出一堆提交。
+// 页面隐藏或关闭前会尽量补推一次（不保证一定送达，重要改动请手动点「上传到云端」）。
+function envMs(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+// 直接写 import.meta.env.VITE_xxx，Vite 构建时才能静态替换（可选链不会被替换）
+export const AUTO_PUSH_DELAY_MS = envMs(import.meta.env.VITE_AUTO_PUSH_DELAY_MS, 3 * 60 * 1000);
+const REMOTE_POLL_MS = envMs(import.meta.env.VITE_REMOTE_POLL_MS, 60 * 1000);
+
 let autoTimer = null;
 let autoQueue = Promise.resolve();
+let pendingReason = '数据变更';
+
+/** 串行排队一次推送（失败只记日志，不打断用户操作） */
+function enqueuePush(reason) {
+  const cfg = loadConfig();
+  if (!cfg.autoPush || !isConfigured(cfg)) return autoQueue;
+  autoQueue = autoQueue
+    .then(() => push({ reason }, loadConfig()))
+    .catch((err) => {
+      console.warn('[github-sync] 自动上传失败：', err?.message || err);
+    });
+  return autoQueue;
+}
 
 export function scheduleAutoPush(reason = '数据变更') {
   const cfg = loadConfig();
   if (!cfg.autoPush || !isConfigured(cfg)) return;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
 
+  pendingReason = reason;
   if (autoTimer) clearTimeout(autoTimer);
   autoTimer = setTimeout(() => {
     autoTimer = null;
-    autoQueue = autoQueue
-      .then(() => push({ reason }, loadConfig()))
-      .catch((err) => {
-        // 失败不打断用户操作，只记录，等下次手动同步
-        console.warn('[github-sync] 自动上传失败：', err?.message || err);
-      });
-  }, 1500);
+    enqueuePush(pendingReason);
+  }, AUTO_PUSH_DELAY_MS);
+}
+
+/** 立刻推掉待上传的改动；没有待推内容时什么都不做 */
+export function flushAutoPush() {
+  if (!autoTimer) return autoQueue;
+  clearTimeout(autoTimer);
+  autoTimer = null;
+  return enqueuePush(pendingReason);
 }
 
 /** 取消待执行的自动推送（例如切换数据模式时） */
 export function cancelAutoPush() {
   if (autoTimer) clearTimeout(autoTimer);
   autoTimer = null;
+}
+
+// —— 监听云端是否有其他设备的更新 ————————————————————————
+/**
+ * 定时读取云端文件的 sha，与上次同步记录的 sha 比较；不同则回调。
+ * 只读，不改任何数据；未配置 / 离线 / 页面隐藏时跳过本轮。
+ * @param {(info: { sha: string, savedAt: string|null }) => void} onRemoteChange
+ * @returns {() => void} 停止监听
+ */
+export function startRemoteWatch(onRemoteChange) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return () => {};
+
+  let stopped = false;
+  let timer = null;
+  let inFlight = false;
+
+  const check = async () => {
+    if (stopped || inFlight) return;
+    if (document.visibilityState === 'hidden') return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if (!isConfigured()) return; // 还没填仓库/令牌：不打扰，等配置好后的下一轮
+    inFlight = true;
+    try {
+      const cfg = loadConfig();
+      const remote = await gh.readFile(cfg, { path: gh.normalizePath(cfg.path), branch: cfg.branch });
+      const lastSha = loadState().lastSha;
+      // 只有「同步过一次」之后才知道自己是哪一版；首次上传/拉取前不提示
+      if (remote?.sha && lastSha && remote.sha !== lastSha) {
+        let savedAt = null;
+        try {
+          savedAt = JSON.parse(remote.text)?.savedAt || null; // 密文信封解析不出，属正常
+        } catch {
+          /* ignore */
+        }
+        onRemoteChange({ sha: remote.sha, savedAt });
+      }
+    } catch {
+      // 网络抖动 / 令牌过期：静默，下一轮再试
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  const loop = () => {
+    if (stopped) return;
+    timer = setTimeout(async () => {
+      timer = null;
+      await check();
+      loop();
+    }, REMOTE_POLL_MS);
+  };
+
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') check();
+  };
+
+  check();
+  loop();
+  document.addEventListener('visibilitychange', onVisible);
+
+  return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+    document.removeEventListener('visibilitychange', onVisible);
+  };
 }

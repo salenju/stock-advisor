@@ -23,7 +23,7 @@ import {
   syncFromPurchases,
   COST_METHODS,
 } from '../core/derive.js';
-import { createHolding } from '../core/schema.js';
+import { createHolding, dataSignature } from '../core/schema.js';
 import { buildStats } from '../core/stats.js';
 import { buildCsv } from '../core/csv.js';
 import { getRates, ratesInfo } from '../core/rates.js';
@@ -93,9 +93,15 @@ export function setMode(m) {
 // 内存缓存：与 localStore 之间的写穿缓存，避免每次操作都重读存储
 let cache = null;
 let snapshotChecked = false;
+// 上一次落盘时的「交易数据指纹」：行情/提醒状态等易变字段已被剥离，
+// 只有真正的持仓/交易改动才会改变它，用来判断这次写盘是否值得推送到云端。
+let lastSavedSignature = null;
 
 async function loadLocal() {
-  if (!cache) cache = await local.loadHoldings();
+  if (!cache) {
+    cache = await local.loadHoldings();
+    lastSavedSignature = dataSignature(cache);
+  }
   return cache;
 }
 
@@ -103,13 +109,24 @@ async function loadLocal() {
 export function resetLocalCache() {
   cache = null;
   snapshotChecked = false;
+  lastSavedSignature = null;
 }
 
-async function persistLocal(reason) {
+/**
+ * 写盘并按需自动上传。
+ * @param {string} reason 备份/提交信息
+ * @param {{push?: boolean}} [opts] push=false 用于纯行情刷新：只写本机，不产生云端提交
+ */
+async function persistLocal(reason, { push = true } = {}) {
+  const before = lastSavedSignature;
   cache = await local.saveHoldings(cache, reason);
-  // github 模式下，每次写操作后自动把整包数据推到私有仓库（节流 1.5s）。
+  const signature = dataSignature(cache);
+  lastSavedSignature = signature;
+
+  // github 模式下，只有交易数据真的变了才把整包推到私有仓库（节流 1.5s）；
+  // 行情刷新（currentPrice/lastUpdated 等易变字段）不会改变指纹，因此不会刷出一堆 commit。
   // local 模式下 scheduleAutoPush 内部会直接返回，不做任何事。
-  if (currentMode() === 'github') ghSync.scheduleAutoPush(reason);
+  if (push && signature !== before && currentMode() === 'github') ghSync.scheduleAutoPush(reason);
   return cache;
 }
 
@@ -149,7 +166,8 @@ const localSource = {
       const open = anyMarketOpen(list.filter(isActive));
       quote = await refreshQuotes(list, { maxMovePct: settings?.notify?.maxDailyMovePct });
       quote.open = open;
-      if (quote.quoteOk > 0) await persistLocal('行情更新');
+      // 行情只写本机：价格是易变数据，推到云端既没意义又会刷屏提交
+      if (quote.quoteOk > 0) await persistLocal('行情更新', { push: false });
     }
     await maybeSnapshot(settings).catch(() => {});
 

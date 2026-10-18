@@ -19,6 +19,8 @@
 - `web/src/store/localStore.js`：IndexedDB（不可用降级 localStorage），`kv` + `backups` 两个 store；`saveHoldings` 写入前对**写入前的状态**做「变更指纹不同才备份」（最多 30 份，可回滚）；`exportBundle/importBundle`（merge 按 `region+code` 取记录更完整的一方 / replace），`parseBundle` 兼容裸数组（旧版 `data/holdings.json`）。
 - **IndexedDB 两个坑（都踩过并修了）**：① `tx()` 不能把 `req.result === undefined` 当成"没取到"否则会把 IDBRequest 对象当数据返回（报 `IDBRequest object could not be cloned`）；② 写入前必须 `JSON.parse(JSON.stringify(v))` 剥离 Vue 响应式 Proxy（否则报 `#<Object> could not be cloned`）。
 - 云同步：`github-api.js` 用文件 `sha` 做乐观锁；`sync-payload.js` 可选 AES-GCM（PBKDF2-SHA256，20 万次迭代）；公开仓库会被配置面板拦下；冲突时提示先拉取合并。
+- 自动推送：`github-sync.js` 的 `scheduleAutoPush` 是 **3 分钟防抖**（`VITE_AUTO_PUSH_DELAY_MS` 可覆盖，供 check:sync 缩短），只由 `dataSource.persistLocal` 在**交易数据指纹变化**时触发；行情刷新走 `push: false`，不产生提交。页面 `pagehide/visibilitychange` 时 `flushAutoPush` 尽力补推。
+- 云端更新提醒：`startRemoteWatch` 每 60 秒（`VITE_REMOTE_POLL_MS` 可覆盖）读一次远端 sha，与 `lastSha` 不同就回调；`App.vue` 顶部显示「云端有来自其他设备的更新」，点「立即同步」走 `syncNow()`（先拉后推）。注意：打开页面**不会自动拉取**。
 - 行情前端化（已实测）：腾讯 `qt.gtimg.cn` 与 `web.ifzq.gtimg.cn` 返回 `Access-Control-Allow-Origin: *`，可直接 fetch（GBK 用 `TextDecoder('gbk')`）；基金走 `fund.eastmoney.com/pingzhongdata/{code}.js` 的 `<script>` 注入（东财 `api.fund.eastmoney.com` 无 CORS）。汇率源 `api.frankfurter.dev/v1` 与 `open.er-api.com` 都带 CORS。
 - 纯静态下**不支持**：收益趋势（K 线重放）、飞书推送、无人值守定时任务；已用「打开页面时补记当日快照」补偿每日快照。
 
