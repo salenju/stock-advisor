@@ -5,15 +5,17 @@ import {
   currentMode,
   setMode,
   isLocalMode,
+  usesLocalStore,
   MODE_LABEL,
+  MODE_BADGE,
   getAuthToken,
   setAuthToken,
   apiFetch,
 } from '../services/dataSource.js';
 import { downloadCsv } from '../core/csv.js';
 
-// 鉴权工具与统一 fetch 已迁到 dataSource（两种模式共用），这里再导出以保持调用方不变
-export { getAuthToken, setAuthToken, apiFetch, currentMode, setMode, isLocalMode, MODE_LABEL };
+// 鉴权工具与统一 fetch 已迁到 dataSource（三种模式共用），这里再导出以保持调用方不变
+export { getAuthToken, setAuthToken, apiFetch, currentMode, setMode, isLocalMode, MODE_LABEL, MODE_BADGE };
 
 // 模块级单例状态：所有组件共享同一份持仓数据
 const holdings = ref([]);
@@ -233,7 +235,7 @@ async function updateHolding(id, body) {
 
 // 用当前成本法重算历史卖出成本（会改写历史，需二次确认）
 async function recomputeHolding(id, name) {
-  const backupNote = isLocalMode()
+  const backupNote = usesLocalStore()
     ? '本地模式会在改动前自动留一份版本快照，可在「数据」面板回滚。'
     : '请先确认已备份 data/holdings.json。';
   if (!confirm(`确认按当前成本法重算「${name}」的历史卖出成本？\n这会改写已记录的卖出成本与盈亏，${backupNote}`)) return false;
@@ -259,6 +261,7 @@ export function useHoldings() {
     fxInfo,
     mode: currentMode,
     modeLabel: MODE_LABEL,
+    modeBadge: MODE_BADGE,
     totalCost,
     totalMarket,
     totalHoldingProfit,

@@ -15,23 +15,25 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { importCsvText } from './import-csv-core.js';
+import { dataDir } from './store.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', 'data');
-const DATA_FILE = join(DATA_DIR, 'holdings.json');
-const DEFAULT_CSV = join(DATA_DIR, '买入-卖出记录 - Sheet1.csv');
+// 与 store.js 共用数据目录（支持 STOCK_DATA_DIR 覆盖）
+const DATA_DIR = () => dataDir();
+const DATA_FILE = () => join(DATA_DIR(), 'holdings.json');
+const DEFAULT_CSV = () => join(DATA_DIR(), '买入-卖出记录 - Sheet1.csv');
 
 // 若默认路径不存在，自动在 data 目录里找一个非 holdings 的 .csv
 function resolveCsvPath(explicit) {
   if (explicit) return explicit;
-  if (existsSync(DEFAULT_CSV)) return DEFAULT_CSV;
+  if (existsSync(DEFAULT_CSV())) return DEFAULT_CSV();
   try {
-    const csv = readdirSync(DATA_DIR).find(
+    const csv = readdirSync(DATA_DIR()).find(
       (f) => f.toLowerCase().endsWith('.csv') && !f.toLowerCase().includes('holdings')
     );
-    if (csv) return join(DATA_DIR, csv);
+    if (csv) return join(DATA_DIR(), csv);
   } catch { /* ignore */ }
-  return DEFAULT_CSV;
+  return DEFAULT_CSV();
 }
 
 function main() {
@@ -45,11 +47,11 @@ function main() {
   }
 
   const csvText = readFileSync(csvPath, 'utf-8');
-  const holdings = JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
+  const holdings = JSON.parse(readFileSync(DATA_FILE(), 'utf-8'));
   const result = importCsvText(holdings, csvText, { createMissing });
 
   // 写盘
-  writeFileSync(DATA_FILE, JSON.stringify(holdings, null, 2), 'utf-8');
+  writeFileSync(DATA_FILE(), JSON.stringify(holdings, null, 2), 'utf-8');
 
   // 汇总
   console.log('══════════════════════════════════════════');
@@ -75,7 +77,7 @@ function main() {
     }
   }
   console.log('══════════════════════════════════════════');
-  console.log(`已保存到：${DATA_FILE}`);
+  console.log(`已保存到：${DATA_FILE()}`);
 }
 
 try {

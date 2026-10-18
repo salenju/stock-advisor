@@ -2,7 +2,30 @@
 // 网络侧（腾讯K线/东财净值）用 mock 的 global fetch 打桩，测试可离线、确定性。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+// 集成测试必须自带数据：data/ 已被 .gitignore 排除（持仓是个人隐私，绝不入库），
+// 所以这里把 test/fixtures 复制到临时目录，再用 STOCK_DATA_DIR 指过去。
+// 好处：CI 上无需任何本地数据文件，也不会污染开发机的真实数据。
+const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
+
+async function useFixtureData(t) {
+  const dir = await mkdtemp(join(tmpdir(), 'stock-advisor-test-'));
+  await cp(FIXTURE_DIR, dir, { recursive: true });
+  process.env.STOCK_DATA_DIR = dir;
+  t.after(async () => {
+    delete process.env.STOCK_DATA_DIR;
+    await rm(dir, { recursive: true, force: true });
+  });
+  return dir;
+}
+
 import { startServer } from '../server/server.js';
+// server/store.js 里的数据路径是「每次调用时读 env」的函数，
+// 所以静态导入也没问题：调用 useFixtureData 之后立刻生效。
 
 // 打桩：按 URL 路由返回 K线 JSON 或 基金净值 JS；本地服务器请求透传
 function installFetchMock(t) {
@@ -51,6 +74,7 @@ async function startTestServer(t, cfg) {
 }
 
 test('GET /api/holdings：返回币种字段与汇率配置', async (t) => {
+  await useFixtureData(t);
   const cfg = {
     server: { host: '127.0.0.1', port: 0 },
     fx: { rates: { USD_CNY: 7.0, HKD_CNY: 0.9 } },
@@ -77,6 +101,7 @@ test('GET /api/holdings：返回币种字段与汇率配置', async (t) => {
 });
 
 test('GET /api/trend：返回逐日序列（K线/净值已打桩）', async (t) => {
+  await useFixtureData(t);
   installFetchMock(t);
   const cfg = {
     server: { host: '127.0.0.1', port: 0 },
@@ -101,6 +126,7 @@ test('GET /api/trend：返回逐日序列（K线/净值已打桩）', async (t) 
 });
 
 test('GET /api/trend?range=all：不过滤', async (t) => {
+  await useFixtureData(t);
   installFetchMock(t);
   const cfg = {
     server: { host: '127.0.0.1', port: 0 },

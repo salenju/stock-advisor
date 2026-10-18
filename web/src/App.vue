@@ -4,7 +4,7 @@ import { REFRESH_MS, REGION_LABEL } from './constants/options.js';
 import { useTheme } from './composables/useTheme.js';
 import { usePwa } from './composables/usePwa.js';
 import { useHoldings, getAuthToken, setAuthToken } from './composables/useHoldings.js';
-import { dataSource, isLocalMode, currentMode } from './services/dataSource.js';
+import { dataSource, isLocalMode, currentMode, MODE_BADGE, MODE_LABEL } from './services/dataSource.js';
 
 import AppHeader from './components/AppHeader.vue';
 import OverviewCards from './components/OverviewCards.vue';
@@ -29,8 +29,12 @@ const {
 } = useHoldings();
 
 // ---------- 数据模式 ----------
-// 本地 = 数据只存本机浏览器；服务端 = 沿用原来的 Node 接口。切换会整页刷新。
+// local  = 数据只存本机浏览器
+// github = 本机存储 + 加密同步到你的私有仓库（多设备）
+// server = 沿用原来的 Node 接口。切换会整页刷新。
 const dataMode = currentMode();
+const modeBadge = MODE_BADGE[dataMode] || MODE_BADGE.server;
+const modeFullLabel = MODE_LABEL[dataMode] || MODE_LABEL.server;
 
 // ---------- 页签 ----------
 // 支持 ?tab=stats 直达复盘统计（manifest 快捷方式 / 收藏链接可用）
@@ -59,8 +63,9 @@ function closeInstallTip() {
 
 // ---------- 接口鉴权（仅在收到 401 提示时出现）----------
 const tokenInput = ref(getAuthToken());
-// 鉴权只与「服务端数据」模式有关；本地数据模式没有 token 概念
-const needToken = computed(() => !isLocalMode() && /未授权/.test(error.value));
+// 鉴权只与「服务端数据」模式有关；本地/云同步模式没有 token 概念
+const isServerMode = dataMode === 'server';
+const needToken = computed(() => isServerMode && /未授权/.test(error.value));
 function saveToken() {
   setAuthToken(tokenInput.value);
   refreshNow();
@@ -198,8 +203,9 @@ onUnmounted(() => {
       :testing="testing"
       :test-msg="testMsg"
       :can-install="canInstall"
-      :feishu-enabled="!isLocalMode()"
-      :mode-label="dataMode === 'local' ? '🔒 本地数据' : '🖥️ 服务端数据'"
+      :feishu-enabled="isServerMode"
+      :mode-label="modeBadge"
+      :mode-title="modeFullLabel"
       :ring-c="RING_C"
       :ring-offset="ringOffset"
       @toggle-theme="toggleTheme"

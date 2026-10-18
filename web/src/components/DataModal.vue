@@ -1,13 +1,26 @@
 <script setup>
 // 「数据」面板：数据放在哪、怎么备份、怎么换设备。
 //
-// 本地数据模式的隐私承诺：持仓数据只写进这台设备的浏览器存储（IndexedDB），
-// 不经过任何服务器。代价是「清缓存 / 换浏览器 / 换设备」数据就没了，
+// 三种存放位置：
+//   local  —— 只写进这台设备的浏览器（IndexedDB），不经过任何服务器。
+//   github —— 同样写本机，但额外加密同步到**你自己的私有仓库**，多设备共享。
+//   server —— 老的 Node 后端，支持飞书推送与历史趋势。
+//
+// 本地模式的代价是「清缓存 / 换浏览器 / 换设备」数据就没了，
 // 所以这里把「导出备份」做成一等公民，并在久未备份时主动提醒。
 import { ref, computed, watch } from 'vue';
-import { currentMode, setMode, MODE_LABEL, localStore, isLocalMode, resetLocalCache } from '../services/dataSource.js';
+import {
+  currentMode,
+  setMode,
+  MODE_LABEL,
+  localStore,
+  resetLocalCache,
+  usesLocalStore,
+  githubSync,
+} from '../services/dataSource.js';
 import { downloadText, downloadCsv } from '../core/csv.js';
 import { useHoldings } from '../composables/useHoldings.js';
+import GitHubSyncPanel from './GitHubSyncPanel.vue';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -18,6 +31,10 @@ const { exportCsv } = useHoldings();
 
 const mode = ref(currentMode());
 const isLocal = computed(() => mode.value === 'local');
+const isGithub = computed(() => mode.value === 'github');
+const isServer = computed(() => mode.value === 'server');
+// 本地与云同步模式都以本机 IndexedDB 为工作副本，备份/导入/回滚都适用
+const hasLocalData = computed(() => usesLocalStore());
 const info = ref(null);
 const backups = ref([]);
 const csvMsg = ref('');
@@ -70,7 +87,7 @@ function reset() {
 }
 
 async function refresh() {
-  if (!isLocal.value) return;
+  if (!hasLocalData.value) return;
   try {
     info.value = await localStore.storageInfo();
     backups.value = await localStore.listBackups();
@@ -210,9 +227,16 @@ async function clearAll() {
 // ---------- 模式切换 ----------
 function switchMode(m) {
   if (m === mode.value) return;
+  if (m === 'github' && !githubSync.isConfigured()) {
+    // 还没配置就切过去会得到一个空壳：提醒先填仓库，但仍允许进入（配置面板就在下面）
+    if (!confirm('切换到「GitHub 私有仓库」需要先填写仓库与令牌。\n现在就切过去并开始配置？')) return;
+  }
   setMode(m);
   const label = MODE_LABEL[m];
-  if (!confirm(`切换到「${label}」？页面会重新加载。\n两种模式的数据相互独立，切换不会删除任何数据。`)) return;
+  if (!confirm(`切换到「${label}」？页面会重新加载。\n三种模式共用同一份本机数据，切换不会删除任何数据。`)) {
+    setMode(mode.value); // 用户取消 → 把模式改回去，别留下"已切换但没刷新"的怪状态
+    return;
+  }
   window.location.reload();
 }
 
@@ -231,6 +255,7 @@ function close() {
           <p class="mt-0.5 text-xs opacity-60">
             当前模式：<b>{{ MODE_LABEL[mode] }}</b>
             <span v-if="isLocal">· 数据只存在这台设备的浏览器里，不会上传到任何服务器</span>
+            <span v-else-if="isGithub">· 本机留一份，加密同步到你自己的私有仓库</span>
           </p>
         </div>
         <button @click="close" class="rounded px-1.5 text-xl leading-none opacity-60 hover:opacity-100" title="关闭">×</button>
@@ -239,30 +264,46 @@ function close() {
       <!-- 数据模式 -->
       <section class="mb-4 rounded-xl border border-base-300 p-3">
         <div class="mb-2 text-sm font-medium">数据存放位置</div>
-        <div class="grid gap-2 sm:grid-cols-2">
+        <div class="grid gap-2 sm:grid-cols-3">
           <button
             @click="switchMode('local')"
             class="rounded-lg border p-3 text-left text-xs transition"
             :class="isLocal ? 'border-primary bg-primary/10' : 'border-base-300 hover:bg-base-200'"
           >
-            <div class="text-sm font-semibold">🔒 本地数据（推荐）</div>
-            <div class="mt-1 opacity-70">持仓存在本机浏览器（IndexedDB），零服务器、零上传，隐私最好。行情由浏览器直连行情源。</div>
+            <div class="text-sm font-semibold">🔒 本地数据</div>
+            <div class="mt-1 opacity-70">存在本机浏览器（IndexedDB），零服务器、零上传，隐私最好；但换设备要手动导出导入。</div>
             <div v-if="isLocal" class="mt-1 font-medium text-primary">当前使用中</div>
+          </button>
+          <button
+            @click="switchMode('github')"
+            class="rounded-lg border p-3 text-left text-xs transition"
+            :class="isGithub ? 'border-primary bg-primary/10' : 'border-base-300 hover:bg-base-200'"
+          >
+            <div class="text-sm font-semibold">☁️ GitHub 私有仓库</div>
+            <div class="mt-1 opacity-70">本机照常离线可用，改动自动加密同步到<b>你自己的私有仓库</b>，手机电脑都能接着用。</div>
+            <div v-if="isGithub" class="mt-1 font-medium text-primary">当前使用中</div>
+            <div v-else-if="!githubSync.isConfigured()" class="mt-1 text-[11px] opacity-50">未配置</div>
           </button>
           <button
             @click="switchMode('server')"
             class="rounded-lg border p-3 text-left text-xs transition"
-            :class="!isLocal ? 'border-primary bg-primary/10' : 'border-base-300 hover:bg-base-200'"
+            :class="isServer ? 'border-primary bg-primary/10' : 'border-base-300 hover:bg-base-200'"
           >
             <div class="text-sm font-semibold">🖥️ 服务端数据</div>
-            <div class="mt-1 opacity-70">数据存在 Node 服务的 <code>data/holdings.json</code>，支持飞书推送、无人值守定时任务、历史收益趋势。</div>
-            <div v-if="!isLocal" class="mt-1 font-medium text-primary">当前使用中</div>
+            <div class="mt-1 opacity-70">数据存在 Node 服务的 <code>data/holdings.json</code>，支持飞书推送与无人值守定时任务。</div>
+            <div v-if="isServer" class="mt-1 font-medium text-primary">当前使用中</div>
           </button>
         </div>
+        <p v-if="isGithub && !githubSync.isConfigured()" class="mt-2 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
+          当前是云同步模式，但还没有配置仓库。请在下方填写「用户名 / 仓库名 / 令牌」，否则数据只存在本机。
+        </p>
       </section>
 
-      <!-- 本地模式：备份 / 导入 / 存储概览 -->
-      <template v-if="isLocal">
+      <!-- GitHub 云同步配置（仅在云同步模式下显示） -->
+      <GitHubSyncPanel :show="isGithub" @changed="refresh" />
+
+      <!-- 本地/云同步模式：备份 / 导入 / 存储概览 -->
+      <template v-if="hasLocalData">
         <!-- 概览 -->
         <section v-if="info" class="mb-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
           <div class="rounded-lg bg-base-200 p-2">
@@ -286,8 +327,14 @@ function close() {
         <!-- 备份提醒 -->
         <div v-if="needExportRemind" class="mb-4 rounded-xl border border-warning/50 bg-warning/10 p-3 text-xs">
           <b>该导出备份了。</b>
-          <span v-if="daysSinceExport === null">本设备还没有导出过备份，清浏览器数据 / 换设备会导致数据丢失。</span>
-          <span v-else>距离上次导出已 {{ daysSinceExport }} 天，建议导出一份留档。</span>
+          <template v-if="isGithub">
+            <span v-if="daysSinceExport === null">云同步会保存数据，但导出一份本地存档更保险（令牌失效 / 仓库被删都能救回来）。</span>
+            <span v-else>距离上次导出已 {{ daysSinceExport }} 天，建议导出一份留档。</span>
+          </template>
+          <template v-else>
+            <span v-if="daysSinceExport === null">本设备还没有导出过备份，清浏览器数据 / 换设备会导致数据丢失。</span>
+            <span v-else>距离上次导出已 {{ daysSinceExport }} 天，建议导出一份留档。或者切到「GitHub 私有仓库」模式自动备份。</span>
+          </template>
         </div>
 
         <!-- 导出 -->
@@ -365,7 +412,11 @@ function close() {
         <!-- 危险区 -->
         <section class="mb-4 rounded-xl border border-error/40 p-3">
           <div class="mb-2 text-sm font-medium text-error">危险操作</div>
-          <p class="mb-2 text-xs opacity-70">清空本设备浏览器里的全部持仓、快照与备份（不可撤销，建议先导出备份）。输入「清空」以确认：</p>
+          <p class="mb-2 text-xs opacity-70">
+            清空本设备浏览器里的全部持仓、快照与备份（不可撤销，建议先导出备份）。
+            <span v-if="isGithub" class="text-warning">注意：这只清本机，云端仓库里的文件不会被删除；下次拉取会把数据带回来。</span>
+            输入「清空」以确认：
+          </p>
           <div class="flex flex-wrap items-center gap-2">
             <input v-model="confirmClear" class="input input-bordered input-xs w-32" placeholder="清空" />
             <button @click="clearAll" class="btn btn-xs btn-error" :disabled="confirmClear !== '清空' || !!busy">清空本地数据</button>
@@ -381,7 +432,7 @@ function close() {
             飞书提醒、无人值守的每日快照/收盘日报、历史收益趋势都由后端调度器提供。
           </p>
           <p class="mt-2 opacity-70">
-            若想把服务端数据搬到本机浏览器：先切到「本地数据」，再在此面板导入 <code>data/holdings.json</code>（会自动识别）。
+            若想把服务端数据搬到本机浏览器：先切到「本地数据」或「GitHub 私有仓库」，再在此面板导入 <code>data/holdings.json</code>（会自动识别）。
           </p>
         </section>
       </template>

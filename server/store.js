@@ -1,6 +1,6 @@
 import { readFile, writeFile, stat, mkdir, readdir, unlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { migrateHolding, dataSignature } from '../web/src/core/schema.js';
 
 // schema（旧版本迁移 / 变更指纹）已抽到前后端共享模块：web/src/core/schema.js
@@ -8,10 +8,18 @@ import { migrateHolding, dataSignature } from '../web/src/core/schema.js';
 export { migrateHolding };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', 'data');
-const DATA_FILE = join(DATA_DIR, 'holdings.json');
-const BACKUP_DIR = join(DATA_DIR, 'backups');
-const SIG_FILE = join(BACKUP_DIR, '.last-signature');
+
+// 数据目录。默认是仓库根的 data/（已被 .gitignore 排除，绝不入库）。
+// 允许用 STOCK_DATA_DIR 覆盖：集成测试指向 test/fixtures，CI 上就不依赖
+// 被忽略的 data/ 目录，也不会把任何个人持仓写进仓库。
+// 刻意做成「每次调用都重新读 env」而不是模块常量，测试可在导入后任意时刻改。
+export function dataDir() {
+  const custom = process.env.STOCK_DATA_DIR;
+  return custom && custom.trim() ? resolve(custom.trim()) : join(__dirname, '..', 'data');
+}
+const DATA_FILE = () => join(dataDir(), 'holdings.json');
+const BACKUP_DIR = () => join(dataDir(), 'backups');
+const SIG_FILE = () => join(BACKUP_DIR(), '.last-signature');
 
 // 备份配置（由 configureStore 从 config.json 注入）
 let backupOptions = { enabled: true, keep: 30 };
@@ -28,12 +36,14 @@ export function configureStore(cfg) {
 let cache = null;
 // 缓存对应的文件修改时间（毫秒）。用于判断外部是否手动改过文件。
 let cacheMtime = 0;
+// 缓存所属的数据目录：env 切换目录时必须丢弃旧缓存，否则会串数据
+let cacheDir = null;
 let writeChain = Promise.resolve();
 
 // 取文件当前的 mtime（毫秒）；文件不存在时返回 0
 async function getMtime() {
   try {
-    const s = await stat(DATA_FILE);
+    const s = await stat(DATA_FILE());
     return s.mtimeMs;
   } catch {
     return 0;
@@ -54,7 +64,7 @@ function stamp(d = new Date()) {
 // 清理旧备份：按文件名倒序保留最新 keep 份
 async function pruneBackups(keep) {
   try {
-    const files = (await readdir(BACKUP_DIR))
+    const files = (await readdir(BACKUP_DIR()))
       .filter((f) => /^holdings-\d{8}-\d{6}\.json$/.test(f))
       .sort()
       .reverse();
@@ -71,14 +81,14 @@ async function pruneBackups(keep) {
 async function backupBeforeWrite() {
   if (!backupOptions.enabled) return;
   try {
-    const cur = await readFile(DATA_FILE, 'utf-8');
+    const cur = await readFile(DATA_FILE(), 'utf-8');
     const sig = signatureOf(JSON.parse(cur));
-    const last = await readFile(SIG_FILE, 'utf-8').catch(() => '');
+    const last = await readFile(SIG_FILE(), 'utf-8').catch(() => '');
     if (sig === last.trim()) return;
 
-    await mkdir(BACKUP_DIR, { recursive: true });
-    await writeFile(join(BACKUP_DIR, `holdings-${stamp()}.json`), cur, 'utf-8');
-    await writeFile(SIG_FILE, sig, 'utf-8');
+    await mkdir(BACKUP_DIR(), { recursive: true });
+    await writeFile(join(BACKUP_DIR(), `holdings-${stamp()}.json`), cur, 'utf-8');
+    await writeFile(SIG_FILE(), sig, 'utf-8');
     await pruneBackups(backupOptions.keep);
   } catch (e) {
     // 首次运行尚无数据文件属正常情况，其余错误显式告警（不阻塞主流程）
@@ -90,10 +100,21 @@ async function backupBeforeWrite() {
 // migrateHolding 由 web/src/core/schema.js 提供（本文件顶部已再导出）。
 
 export async function loadHoldings() {
+  const dir = dataDir();
+  if (cacheDir !== dir) {
+    cache = null;
+    cacheMtime = 0;
+    cacheDir = dir;
+  }
   const mtime = await getMtime();
   // 仅在「首次加载」或「文件被外部修改过」时重新读盘，否则复用内存缓存
   if (!cache || mtime > cacheMtime) {
-    const raw = await readFile(DATA_FILE, 'utf-8');
+    // 首次运行（全新克隆、数据目录被清空）没有数据文件是正常状态：
+    // 当作空持仓继续，而不是让 /api/holdings 直接 500。
+    const raw = await readFile(DATA_FILE(), 'utf-8').catch((e) => {
+      if (e.code === 'ENOENT') return '[]';
+      throw e;
+    });
     let list = JSON.parse(raw);
     let changed = false;
     list = list.map((h) => {
@@ -113,7 +134,7 @@ export async function saveHoldings(holdings) {
   const data = holdings ?? cache;
   writeChain = writeChain
     .then(() => backupBeforeWrite())
-    .then(() => writeFile(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8'))
+    .then(() => writeFile(DATA_FILE(), JSON.stringify(data, null, 2), 'utf-8'))
     // 写盘后同步 mtime，避免把「自己刚写的」误判成外部改动而重复重载
     .then(async () => { cacheMtime = await getMtime(); })
     .catch((e) => console.error('[store] save error', e.message));
@@ -122,5 +143,5 @@ export async function saveHoldings(holdings) {
 
 // 供 /api/health 与测试使用
 export function storeInfo() {
-  return { dataFile: DATA_FILE, backupDir: BACKUP_DIR, ...backupOptions };
+  return { dataFile: DATA_FILE(), backupDir: BACKUP_DIR(), ...backupOptions };
 }

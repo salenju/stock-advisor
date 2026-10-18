@@ -1,0 +1,107 @@
+[
+  {
+    "id": "h_fixture_0001",
+    "name": "小米集团-W",
+    "code": "hk01810",
+    "status": "持有",
+    "region": "港股",
+    "type": "股票",
+    "strategy": "long",
+    "costMethod": "LIFO",
+    "snapshotDate": "2026-08-01",
+    "snapshotProfit": 0,
+    "snapshotReturnRate": 0,
+    "position": 2000,
+    "purchases": [
+      {
+        "id": "p_fixture_0001",
+        "buyPrice": 20,
+        "buyQuantity": 2000,
+        "buyTime": "2026-08-01",
+        "fee": 12,
+        "targetProfitRate": 20,
+        "stopLossRate": 10
+      }
+    ],
+    "dividends": [],
+    "splits": [],
+    "sells": [],
+    "refillDropRate": 10,
+    "refillPrice": 0,
+    "nextStrategy": "分批补仓",
+    "trailingStopPct": null,
+    "dailyDropAlertPct": null,
+    "dailyRiseAlertPct": null,
+    "note": "集成测试用固定夹具，不是真实持仓"
+  },
+  {
+    "id": "h_fixture_0002",
+    "name": "易方达蓝筹精选",
+    "code": "005827",
+    "status": "持有",
+    "region": "sh",
+    "type": "股票型基金",
+    "strategy": "mid",
+    "costMethod": "LIFO",
+    "snapshotDate": "2026-08-01",
+    "snapshotProfit": 0,
+    "snapshotReturnRate": 0,
+    "position": 1000,
+    "purchases": [
+      {
+        "id": "p_fixture_0002",
+        "buyPrice": 1.5,
+        "buyQuantity": 1000,
+        "buyTime": "2026-08-01",
+        "fee": 1.5,
+        "targetProfitRate": 20,
+        "stopLossRate": 20
+      }
+    ],
+    "dividends": [],
+    "splits": [],
+    "sells": [],
+    "refillDropRate": 10,
+    "refillPrice": 0,
+    "nextStrategy": "分批补仓",
+    "trailingStopPct": null,
+    "dailyDropAlertPct": null,
+    "dailyRiseAlertPct": null,
+    "note": "集成测试用固定夹具，不是真实持仓"
+  },
+  {
+    "id": "h_fixture_0003",
+    "name": "苹果 AAPL",
+    "code": "usAAPL",
+    "status": "持有",
+    "region": "美股",
+    "type": "股票",
+    "strategy": "long",
+    "costMethod": "LIFO",
+    "snapshotDate": "2026-08-01",
+    "snapshotProfit": 0,
+    "snapshotReturnRate": 0,
+    "position": 10,
+    "purchases": [
+      {
+        "id": "p_fixture_0003",
+        "buyPrice": 160,
+        "buyQuantity": 10,
+        "buyTime": "2026-08-01",
+        "fee": 1,
+        "targetProfitRate": 20,
+        "stopLossRate": 10
+      }
+    ],
+    "dividends": [],
+    "splits": [],
+    "sells": [],
+    "refillDropRate": 10,
+    "refillPrice": 0,
+    "nextStrategy": "分批补仓",
+    "trailingStopPct": null,
+    "dailyDropAlertPct": null,
+    "dailyRiseAlertPct": null,
+    "note": "集成测试用固定夹具，不是真实持仓"
+  }
+]

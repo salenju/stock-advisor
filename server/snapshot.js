@@ -8,14 +8,16 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { buildSnapshot, mergeSnapshots } from '../web/src/core/snapshot.js';
+import { dataDir } from './store.js';
 
 // buildSnapshot / mergeSnapshots 已抽到前后端共享模块（快照口径必须一致），
 // 本文件只保留「文件读写 + 每日任务状态」部分。
 export { buildSnapshot, mergeSnapshots };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SNAP_FILE = join(__dirname, '..', 'data', 'snapshots.json');
-const STATE_FILE = join(__dirname, '..', 'data', 'daily-state.json');
+// 与 store.js 共用同一个数据目录（可被 STOCK_DATA_DIR 覆盖）
+const SNAP_FILE = () => join(dataDir(), 'snapshots.json');
+const STATE_FILE = () => join(dataDir(), 'daily-state.json');
 
 // ---------- 每日任务状态（幂等去重，进程重启后不重复推送）----------
 
@@ -25,7 +27,7 @@ let stateCache = null;
 export async function loadDailyState() {
   if (stateCache) return stateCache;
   try {
-    const raw = await readFile(STATE_FILE, 'utf-8');
+    const raw = await readFile(STATE_FILE(), 'utf-8');
     stateCache = { ...DEFAULT_STATE, ...JSON.parse(raw) };
   } catch {
     stateCache = { ...DEFAULT_STATE };
@@ -35,8 +37,8 @@ export async function loadDailyState() {
 
 export async function saveDailyState(state) {
   stateCache = { ...DEFAULT_STATE, ...(state || stateCache) };
-  await mkdir(dirname(STATE_FILE), { recursive: true }).catch(() => {});
-  await writeFile(STATE_FILE, JSON.stringify(stateCache, null, 2), 'utf-8').catch(() => {});
+  await mkdir(dirname(STATE_FILE()), { recursive: true }).catch(() => {});
+  await writeFile(STATE_FILE(), JSON.stringify(stateCache, null, 2), 'utf-8').catch(() => {});
   return stateCache;
 }
 
@@ -47,7 +49,7 @@ export function resetDailyStateCache() {
 
 export async function loadSnapshots() {
   try {
-    const raw = await readFile(SNAP_FILE, 'utf-8');
+    const raw = await readFile(SNAP_FILE(), 'utf-8');
     const list = JSON.parse(raw);
     return Array.isArray(list) ? list : [];
   } catch {
@@ -56,8 +58,8 @@ export async function loadSnapshots() {
 }
 
 async function saveSnapshots(list) {
-  await mkdir(dirname(SNAP_FILE), { recursive: true }).catch(() => {});
-  await writeFile(SNAP_FILE, JSON.stringify(list, null, 2), 'utf-8');
+  await mkdir(dirname(SNAP_FILE()), { recursive: true }).catch(() => {});
+  await writeFile(SNAP_FILE(), JSON.stringify(list, null, 2), 'utf-8');
 }
 
 // 按日期 upsert（同一天重复收盘检测时覆盖，保证幂等）
@@ -72,5 +74,5 @@ export async function upsertSnapshot(record) {
 }
 
 export function snapshotFile() {
-  return SNAP_FILE;
+  return SNAP_FILE();
 }

@@ -1,4 +1,5 @@
 <script setup>
+import { ref, onMounted, onUnmounted } from 'vue';
 import RefreshRing from './RefreshRing.vue';
 
 defineProps({
@@ -12,69 +13,154 @@ defineProps({
   canInstall: { type: Boolean, default: false },
   feishuEnabled: { type: Boolean, default: true },
   modeLabel: { type: String, default: '' },
+  modeTitle: { type: String, default: '' },
   ringC: { type: Number, required: true },
   ringOffset: { type: Number, required: true },
 });
 
 const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'import-csv', 'install', 'open-data']);
+
+// 手机上按钮太多会挤成两三行，把低频操作收进「更多」菜单。
+// 桌面端（sm 及以上）仍然全部平铺，菜单不参与布局。
+const moreOpen = ref(false);
+const moreRef = ref(null);
+
+function fire(name) {
+  moreOpen.value = false;
+  emit(name);
+}
+
+function onDocClick(e) {
+  if (!moreOpen.value) return;
+  if (moreRef.value && !moreRef.value.contains(e.target)) moreOpen.value = false;
+}
+function onKeydown(e) {
+  if (e.key === 'Escape') moreOpen.value = false;
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDocClick, true);
+  document.addEventListener('keydown', onKeydown);
+});
+onUnmounted(() => {
+  document.removeEventListener('click', onDocClick, true);
+  document.removeEventListener('keydown', onKeydown);
+});
 </script>
 
 <template>
-  <header class="sticky top-0 z-10 border-b border-base-300 bg-base-100/80 backdrop-blur">
-    <div class="mx-auto flex max-w-7xl flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
-      <div class="min-w-0">
-        <h1 class="text-lg font-semibold tracking-tight sm:text-xl">📈 股票秘书</h1>
-        <p class="mt-0.5 truncate text-xs opacity-60">
-          持仓 · 实时行情 · 飞书阈值提醒
-          <span v-if="modeLabel" class="ml-2 rounded-full bg-base-200 px-2 py-0.5 text-[11px] font-medium">{{ modeLabel }}</span>
-          <span v-if="lastUpdated" class="ml-2 hidden sm:inline">· 更新于 {{ lastUpdated }}</span>
-          <span v-if="loading" class="ml-2 text-info">刷新中…</span>
-          <span class="ml-2 inline-flex items-center gap-1 opacity-60">
-            · {{ countdown }} 秒后刷新
-            <RefreshRing :ring-c="ringC" :offset="ringOffset" />
-          </span>
-        </p>
+  <header class="sticky top-0 z-20 border-b border-base-300 bg-base-100/90 backdrop-blur">
+    <!-- 顶部留白适配 iPhone 刘海（PWA 全屏时尤其重要） -->
+    <div class="mx-auto max-w-7xl px-3 py-2.5 sm:px-6 sm:py-4" style="padding-top: max(0.625rem, env(safe-area-inset-top))">
+      <div class="flex items-center justify-between gap-2">
+        <div class="min-w-0 flex-1">
+          <h1 class="flex items-center gap-1.5 text-base font-semibold tracking-tight sm:text-xl">
+            <span>📈</span>
+            <span class="truncate">股票秘书</span>
+            <span
+              v-if="modeLabel"
+              class="shrink-0 rounded-full bg-base-200 px-2 py-0.5 text-[10px] font-medium sm:text-[11px]"
+              :title="modeTitle || modeLabel"
+            >{{ modeLabel }}</span>
+          </h1>
+          <p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] opacity-60 sm:text-xs">
+            <span class="hidden sm:inline">持仓 · 实时行情 · 飞书阈值提醒</span>
+            <span v-if="lastUpdated" class="hidden sm:inline">· 更新于 {{ lastUpdated }}</span>
+            <span v-if="loading" class="text-info">刷新中…</span>
+            <span class="inline-flex items-center gap-1">
+              · {{ countdown }}s
+              <RefreshRing :ring-c="ringC" :offset="ringOffset" />
+            </span>
+          </p>
+        </div>
+
+        <!-- 主操作：手机与桌面都显示 -->
+        <div class="flex shrink-0 items-center gap-1.5">
+          <button
+            @click="emit('refresh')"
+            class="btn btn-info btn-sm px-2.5 sm:px-4"
+            :disabled="loading"
+            title="立即刷新行情"
+          >刷新</button>
+          <button
+            @click="emit('open-data')"
+            class="btn btn-sm px-2.5 sm:px-4"
+            style="background-color: #7c3aed; border-color: #7c3aed; color: #fff"
+            title="数据存放位置、云同步、导出备份、导入与回滚"
+          >🗄 数据</button>
+          <button @click="emit('add')" class="btn btn-primary btn-sm px-2.5 sm:px-4">+ 添加</button>
+
+          <!-- 次级操作：手机收进菜单；桌面平铺 -->
+          <div class="hidden items-center gap-1.5 sm:flex">
+            <button
+              v-if="canInstall"
+              @click="emit('install')"
+              class="btn btn-accent btn-sm"
+              title="把「股票秘书」安装到桌面 / 主屏幕，像 App 一样打开"
+            >📲 安装 App</button>
+            <button
+              @click="emit('toggle-theme')"
+              :title="isDark ? '切换到浅色' : '切换到深色'"
+              class="btn btn-ghost btn-circle btn-sm"
+            >{{ isDark ? '☀️' : '🌙' }}</button>
+            <button
+              @click="emit('import-csv')"
+              class="btn btn-sm text-white"
+              style="background-color: #f40; border-color: #f40;"
+              title="导入 CSV 买卖记录"
+            >导入 CSV</button>
+            <button
+              v-if="feishuEnabled"
+              @click="emit('test-feishu')"
+              :disabled="testing"
+              :title="testing ? '发送中…' : '向飞书机器人发送一条测试消息'"
+              class="btn btn-warning btn-sm"
+            >{{ testing ? '发送中…' : '测试飞书' }}</button>
+          </div>
+
+          <!-- 手机端「更多」 -->
+          <div ref="moreRef" class="relative sm:hidden">
+            <button
+              @click="moreOpen = !moreOpen"
+              class="btn btn-ghost btn-sm px-2"
+              :class="{ 'btn-active': moreOpen }"
+              title="更多操作"
+              aria-label="更多操作"
+            >⋯</button>
+            <ul
+              v-if="moreOpen"
+              class="absolute right-0 top-full z-30 mt-1 w-40 overflow-hidden rounded-lg border border-base-300 bg-base-100 py-1 text-sm shadow-xl"
+            >
+              <li v-if="canInstall">
+                <button @click="fire('install')" class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200">📲 安装 App</button>
+              </li>
+              <li>
+                <button @click="fire('toggle-theme')" class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200">
+                  {{ isDark ? '☀️ 浅色模式' : '🌙 深色模式' }}
+                </button>
+              </li>
+              <li>
+                <button @click="fire('import-csv')" class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200">📥 导入 CSV</button>
+              </li>
+              <li v-if="feishuEnabled">
+                <button
+                  @click="fire('test-feishu')"
+                  :disabled="testing"
+                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200 disabled:opacity-40"
+                >🔔 {{ testing ? '发送中…' : '测试飞书' }}</button>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
-      <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
-        <span v-if="error" class="w-full text-xs text-error sm:w-auto">{{ error }}</span>
-        <button
-          v-if="canInstall"
-          @click="emit('install')"
-          class="btn btn-accent btn-xs sm:btn-sm"
-          title="把「股票秘书」安装到桌面 / 主屏幕，像 App 一样打开"
-        >📲 安装 App</button>
-        <button
-          @click="emit('toggle-theme')"
-          :title="isDark ? '切换到浅色' : '切换到深色'"
-          class="btn btn-ghost btn-circle btn-xs sm:btn-sm"
-        >{{ isDark ? '☀️' : '🌙' }}</button>
-        <button
-          @click="emit('open-data')"
-          class="btn btn-xs sm:btn-sm"
-          style="background-color: #7c3aed; border-color: #7c3aed;"
-          title="数据存放位置、导出备份、导入与回滚"
-        >🗄 数据</button>
-        <button
-          @click="emit('import-csv')"
-          class="btn btn-xs text-white sm:btn-sm"
-          style="background-color: #f40; border-color: #f40;"
-          title="导入 CSV 买卖记录"
-        >导入 CSV</button>
-        <button @click="emit('refresh')" class="btn btn-info btn-xs sm:btn-sm">刷新</button>
-        <button
-          v-if="feishuEnabled"
-          @click="emit('test-feishu')"
-          :disabled="testing"
-          :title="testing ? '发送中…' : '向飞书机器人发送一条测试消息'"
-          class="btn btn-warning btn-xs sm:btn-sm"
-        >{{ testing ? '发送中…' : '测试飞书' }}</button>
-        <button @click="emit('add')" class="btn btn-primary btn-xs sm:btn-sm">+ 添加持仓</button>
-        <span
-          v-if="testMsg"
-          class="text-xs"
-          :class="testMsg.includes('✓') ? 'text-success' : 'text-error'"
-        >{{ testMsg }}</span>
-      </div>
+
+      <!-- 错误 / 测试结果：单独一行，避免挤坏按钮 -->
+      <p v-if="error" class="mt-1.5 text-[11px] leading-snug text-error sm:text-xs">{{ error }}</p>
+      <p
+        v-if="testMsg"
+        class="mt-1 text-[11px] sm:text-xs"
+        :class="testMsg.includes('✓') ? 'text-success' : 'text-error'"
+      >{{ testMsg }}</p>
     </div>
   </header>
 </template>

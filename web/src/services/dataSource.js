@@ -1,17 +1,20 @@
-// 数据源门面：把「服务端模式」与「本地数据模式」收敛到同一组接口。
+// 数据源门面：把三种「数据存放位置」收敛到同一组接口。
 //
-// 为什么需要它：Phase 1 的目标是「砍掉后端，数据只存浏览器」，但改造期间必须
-// 随时有一个能跑的版本。因此业务代码（useHoldings / 组件）只依赖这里的方法，
-// 两种模式通过 mode 切换，互不影响。
+// 为什么需要它：项目要既能单机用、又能多设备同步、还要保留旧的 Node 后端。
+// 业务代码（useHoldings / 组件）只依赖这里的方法，三种模式通过 mode 切换。
 //
 //   server 模式：沿用原来的一套 REST 调用（后端 Node 服务提供数据与实时行情）
-//   local  模式：数据存本机 IndexedDB（web/src/store/localStore.js），
+//   local  模式：数据只存本机 IndexedDB（web/src/store/localStore.js），
 //                计算走前后端共享的 web/src/core/*，实时行情由浏览器直连腾讯/东财
+//   github 模式：同上（本机 IndexedDB 是工作副本），另外把整包数据加密后
+//                同步到**你自己的 GitHub 私有仓库**里的一个文件。
+//                好处：多设备共享同一份数据，且仓库是私有的 → 不对外泄露。
+//                实现见 services/github-sync.js。
 //
 // 切换方式（优先级从高到低）：
-//   1. 地址栏 ?mode=local / ?mode=server  （会被记住）
+//   1. 地址栏 ?mode=local / github / server  （会被记住）
 //   2. 数据面板里的开关（写入 localStorage）
-//   3. 构建期环境变量 VITE_DATA_MODE=local
+//   3. 构建期环境变量 VITE_DATA_MODE=local|github|server
 import {
   withDerived,
   isActive,
@@ -31,13 +34,22 @@ import { buildSnapshot, upsertSnapshotInList } from '../core/snapshot.js';
 import { refreshQuotes } from '../core/quote.js';
 import { anyMarketOpen, beijingNow, parseHHMM } from '../core/market.js';
 import * as local from '../store/localStore.js';
+import * as ghSync from './github-sync.js';
 
 const MODE_KEY = 'stock-advisor:data-mode';
-export const MODES = ['local', 'server'];
+export const MODES = ['local', 'github', 'server'];
 
 export const MODE_LABEL = {
   local: '本地数据（仅存这台设备）',
+  github: 'GitHub 私有仓库（多设备同步）',
   server: '服务端数据（后端接口）',
+};
+
+/** 头部徽标用的短标签 */
+export const MODE_BADGE = {
+  local: '🔒 本地数据',
+  github: '☁️ 云同步',
+  server: '🖥️ 服务端数据',
 };
 
 /** 解析当前数据模式（并把 ?mode= 的选择记住） */
@@ -80,6 +92,16 @@ export function setMode(m) {
 
 export function isLocalMode() {
   return currentMode() === 'local';
+}
+
+/** 本地存储是「工作副本」的模式：github 模式也在本机存数据，只是多一路同步 */
+export function usesLocalStore() {
+  const m = currentMode();
+  return m === 'local' || m === 'github';
+}
+
+export function isGithubMode() {
+  return currentMode() === 'github';
 }
 
 // =====================================================================
@@ -251,6 +273,9 @@ export function resetLocalCache() {
 
 async function persistLocal(reason) {
   cache = await local.saveHoldings(cache, reason);
+  // github 模式下，每次写操作后自动把整包数据推到私有仓库（节流 1.5s）。
+  // local 模式下 scheduleAutoPush 内部会直接返回，不做任何事。
+  if (currentMode() === 'github') ghSync.scheduleAutoPush(reason);
   return cache;
 }
 
@@ -299,7 +324,7 @@ const localSource = {
       fx: { ...ratesInfo(settings), autoUpdate: false },
       costMethods: COST_METHODS,
       quote,
-      mode: 'local',
+      mode: currentMode(),
     };
   },
 
@@ -446,7 +471,7 @@ const localSource = {
     return { data: out, total: snaps.length };
   },
 
-  // 收益趋势依赖历史 K 线重放（Phase 2 迁到前端）；本地模式先给出明确的"暂不支持"
+  // 收益趋势依赖历史 K 线重放（Phase 2 迁到前端）；本地/云同步模式先给出明确的"暂不支持"
   async trend() {
     const err = new Error('本地数据模式暂不支持收益趋势（历史 K 线重放将在下一阶段迁移）');
     err.unsupported = true;
@@ -481,7 +506,7 @@ const localSource = {
     const list = await loadLocal();
     return {
       ok: true,
-      mode: 'local',
+      mode: currentMode(),
       holdings: { total: list.length, active: list.filter(isActive).length },
       store: await local.storageInfo(),
       fx: ratesInfo(settings),
@@ -490,13 +515,49 @@ const localSource = {
 };
 
 // =====================================================================
+// GitHub 私有仓库模式
+// =====================================================================
+// 数据仍然是本机 IndexedDB 的工作副本（所以离线可用、读取零延迟），
+// 区别在于每次改动会节流推送到你自己的私有仓库，换设备/换浏览器时拉一次就回来了。
+// 所有读写文件、加密、冲突处理都在 services/github-sync.js 里，这里只做薄包装。
+const githubSource = {
+  ...localSource,
+  mode: 'github',
+
+  async list() {
+    const out = await localSource.list();
+    return { ...out, mode: 'github' };
+  },
+
+  // 云同步专用的额外能力（DataModal 用）
+  async syncPull() {
+    const r = await ghSync.pull();
+    resetLocalCache();
+    return r;
+  },
+  async syncPush(reason = '手动同步') {
+    return ghSync.push({ reason, force: true });
+  },
+  async syncNow() {
+    const r = await ghSync.syncNow();
+    resetLocalCache();
+    return r;
+  },
+  syncState: ghSync.syncState,
+};
+
+// =====================================================================
 // 门面
 // =====================================================================
 
+const SOURCES = { local: localSource, github: githubSource, server: serverSource };
+
 /** 当前模式对应的数据源 */
 export function dataSource() {
-  return currentMode() === 'local' ? localSource : serverSource;
+  return SOURCES[currentMode()] || serverSource;
 }
 
-// 数据面板 / 备份导出用的本地存储工具（仅本地模式有意义）
+// 数据面板 / 备份导出用的本地存储工具（本地与云同步模式都有意义）
 export { local as localStore };
+// 云同步工具的再导出，供组件直接调用（配置、测试连接等）
+export { ghSync as githubSync };
