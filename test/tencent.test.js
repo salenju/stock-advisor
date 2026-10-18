@@ -1,7 +1,7 @@
 // 腾讯行情模块单测：代码规范化 + 响应解析
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toTencentCode, normalizeRegion, parseTencentText } from '../server/provider/tencent.js';
+import { toTencentCode, normalizeRegion, parseTencentText } from '../web/src/core/provider/tencent.js';
 
 test('normalizeRegion：中文标签与前缀值均归一', () => {
   assert.equal(normalizeRegion('港股'), 'hk');

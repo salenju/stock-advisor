@@ -1,6 +1,6 @@
 // 汇率解析（前端本地数据模式）。
 //
-// 与 server/provider/fx.js 的语义保持一致：汇率来自「本地设置」，
+// 汇率来自「本地设置」，
 // 缺失/非法时回落到内置默认值。实时汇率抓取（frankfurter / er-api）在 Phase 2 接入。
 export const CURRENCIES = ['CNY', 'HKD', 'USD'];
 

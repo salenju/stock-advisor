@@ -4,18 +4,13 @@ import {
   dataSource,
   currentMode,
   setMode,
-  isLocalMode,
-  usesLocalStore,
   MODE_LABEL,
   MODE_BADGE,
-  getAuthToken,
-  setAuthToken,
-  apiFetch,
 } from '../services/dataSource.js';
 import { downloadCsv } from '../core/csv.js';
 
-// 鉴权工具与统一 fetch 已迁到 dataSource（三种模式共用），这里再导出以保持调用方不变
-export { getAuthToken, setAuthToken, apiFetch, currentMode, setMode, isLocalMode, MODE_LABEL, MODE_BADGE };
+// 模式工具从 dataSource 再导出，保持调用方不变
+export { currentMode, setMode, MODE_LABEL, MODE_BADGE };
 
 // 模块级单例状态：所有组件共享同一份持仓数据
 const holdings = ref([]);
@@ -23,11 +18,11 @@ const lastUpdated = ref('');
 const loading = ref(false);
 const error = ref('');
 
-// 汇率配置（服务端模式来自 /api/holdings 的 fx；本地模式来自本地设置）
+// 汇率配置（来自本地设置 web/src/core/rates.js）
 const fxRates = ref({ CNY: 1 });
 const fxInfo = ref({ source: '', updatedAt: null });
 
-// 与后端 server/provider/fx.js 内置值一致的兜底汇率
+// 兜底汇率（与 web/src/core/rates.js 的内置默认值一致）
 const DEFAULT_RATES = { CNY: 1, USD: 7.0, HKD: 0.9 };
 
 // 取汇率（含兜底）
@@ -235,9 +230,7 @@ async function updateHolding(id, body) {
 
 // 用当前成本法重算历史卖出成本（会改写历史，需二次确认）
 async function recomputeHolding(id, name) {
-  const backupNote = usesLocalStore()
-    ? '本地模式会在改动前自动留一份版本快照，可在「数据」面板回滚。'
-    : '请先确认已备份 data/holdings.json。';
+  const backupNote = '改动前会自动留一份版本快照，可在「数据」面板回滚。';
   if (!confirm(`确认按当前成本法重算「${name}」的历史卖出成本？\n这会改写已记录的卖出成本与盈亏，${backupNote}`)) return false;
   try {
     await dataSource().recompute(id);

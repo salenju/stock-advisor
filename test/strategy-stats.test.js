@@ -1,9 +1,9 @@
 // 策略 / 统计 / 快照 单元测试
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluate, updatePeak } from '../server/strategy.js';
-import { buildStats } from '../server/stats.js';
-import { buildSnapshot, mergeSnapshots } from '../server/snapshot.js';
+import { evaluate, updatePeak } from '../web/src/core/strategy.js';
+import { buildStats } from '../web/src/core/stats.js';
+import { buildSnapshot, mergeSnapshots } from '../web/src/core/snapshot.js';
 
 function H(over = {}) {
   return {

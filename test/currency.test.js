@@ -1,7 +1,7 @@
 // 币种模块单测：地区→币种、汇率换算、分币种汇总
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { currencyOf, currencyCode, fxToCNY, breakdownByCurrency } from '../server/currency.js';
+import { currencyOf, currencyCode, fxToCNY, breakdownByCurrency } from '../web/src/core/currency.js';
 
 const RATES = { CNY: 1, USD: 7.0, HKD: 0.9 };
 

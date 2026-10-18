@@ -2,7 +2,7 @@
 //
 // 设计目标：**数据只存在这台设备的浏览器里，永不外传**。
 //   - 优先 IndexedDB（容量大、异步不阻塞）；不可用时（隐私模式等）退化为 localStorage
-//   - 自动版本快照：交易数据一变就留一份旧版本，最多 30 份，可回滚（对应服务端的 data/backups/）
+//   - 自动版本快照：交易数据一变就留一份旧版本，最多 30 份，可回滚
 //   - 全量导出/导入 JSON：换设备、换浏览器、清缓存前自救
 //
 // 本层不含业务计算，只负责「存、取、备份、导入导出」。
@@ -355,7 +355,7 @@ export async function saveSettings(patch) {
 
 /**
  * 全量导出（用于换设备 / 备份自救）。
- * 不含任何服务端才有的东西（token、飞书密钥），只有你的持仓数据。
+ * 不含任何仓库令牌或加密口令，只有你的持仓数据。
  */
 export async function exportBundle() {
   await initStore();
@@ -391,7 +391,7 @@ export function parseBundle(text) {
   } catch {
     throw new Error('不是合法的 JSON 文件');
   }
-  // 兼容两种历史格式：完整备份包 / 裸 holdings 数组（服务端 data/holdings.json）
+  // 兼容两种历史格式：完整备份包 / 裸 holdings 数组（旧版导出）
   if (Array.isArray(obj)) {
     return { app: 'stock-advisor', kind: 'holdings-only', holdings: obj, snapshots: [], settings: null };
   }

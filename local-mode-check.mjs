@@ -1,7 +1,7 @@
-// 本地数据模式端到端检查：导入 → 行情直连 → 持久化 → 导出备份 → 版本快照回滚 → 切回服务端模式
+// 本地数据模式端到端检查：导入 → 行情直连 → 持久化 → 导出备份 → 版本快照回滚
 import puppeteer from 'puppeteer-core';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { startServer } from './server/server.js';
+import { serveDist } from './scripts/static-server.mjs';
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const fixture = '/tmp/stock-local-import.json';
@@ -28,15 +28,7 @@ writeFileSync(fixture, JSON.stringify(fixtureData, null, 2));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const server = startServer({
-  server: { port: 0, host: '127.0.0.1' },
-  auth: { token: '' },
-  fx: { rates: {} },
-  notify: {},
-  schedule: {},
-});
-await new Promise((r) => server.once('listening', r));
-const base = `http://127.0.0.1:${server.address().port}`;
+const { url: base, close } = await serveDist('dist');
 
 const browser = await puppeteer.launch({
   executablePath: CHROME,
@@ -87,7 +79,7 @@ await page.goto(`${base}/?mode=local`, { waitUntil: 'networkidle0', timeout: 600
 await sleep(1500);
 let headerText = await page.$eval('header', (el) => el.innerText);
 console.log('1) 模式徽标「本地数据」:', has(headerText, '本地数据'));
-console.log('   服务端专属按钮「测试飞书」已隐藏:', headerText.includes('测试飞书') ? 'FAIL' : 'OK');
+console.log('   后端专属按钮「测试飞书」已移除:', headerText.includes('测试飞书') ? 'FAIL' : 'OK');
 
 // ---------- 2. 数据面板 ----------
 await page.click('header button[title*="数据存放位置"]');
@@ -168,21 +160,14 @@ await page.waitForFunction(
 p = await panelText();
 console.log('   回滚:', (p.match(/已回滚[^\n]*/) || ['（无）'])[0]);
 
-// ---------- 9. 切回服务端模式（验证双模式可来回切换） ----------
-await clickByText('dialog.modal-open', '服务端数据');
-await page.waitForFunction(() => /服务端数据/.test(document.querySelector('header').innerText), { timeout: 15000 });
-await sleep(2500);
-const serverText = await page.$eval('header', (el) => el.innerText);
-console.log('9) 切换回服务端模式:', has(serverText, '服务端数据'), '| 「测试飞书」按钮恢复:', serverText.includes('测试飞书') ? 'OK' : 'FAIL');
-const serverList = await page.$eval('main', (el) => el.innerText);
-console.log(
-  '   服务端模式数据与本地库隔离（不含本地导入的「示例·贵州茅台」）:',
-  serverList.includes('示例·贵州茅台') ? 'FAIL（串数据了）' : 'OK'
-);
+// ---------- 9. 数据面板只剩两种前端模式 ----------
+p = await panelText();
+console.log('9) 面板已无「服务端数据」选项:', p.includes('服务端数据') ? 'FAIL（仍显示服务端选项）' : 'OK');
+console.log('   含「GitHub 私有仓库」选项:', has(p, 'GitHub 私有仓库'));
 
 // ---------- 10. 汇总 ----------
 console.log('\n页面错误:', errors.length ? errors.slice(0, 5) : '无');
 
 await browser.close();
-server.close();
+await close();
 process.exit(0);

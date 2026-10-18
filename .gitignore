@@ -8,10 +8,8 @@ dist/
 # ---- 工具/助手本地数据 ----
 .workbuddy/
 
-# ---- 本地私密配置与个人数据（禁止入库）----
-# config.json 含飞书 webhook / secret；data/ 含个人投资明细（持仓、交易、快照、备份）。
-# 整目录忽略，只保留模板：config.example.json 与 data/holdings.example.json。
-config.json
+# ---- 本地私人数据 ----
+# 如果把自己导出的备份临时放在 data/ 下，整目录忽略，只保留导入示例。
 data/*
 !data/holdings.example.json
 logs/

@@ -1,7 +1,6 @@
 // CSV 导出（交易明细 / 归因统计 / 每日快照）。
 //
-// 前后端共享：server.js 的 /api/export 与前端「本地数据模式」都调用这里，
-// 保证两种模式下载到的 CSV 完全一致。
+// 交易明细 / 归因统计 / 每日快照的 CSV 文本都在这里生成，下载由页面触发。
 import { withDerived, dateKey } from './derive.js';
 import { buildStats } from './stats.js';
 
@@ -56,7 +55,7 @@ export function buildSnapshotsCsv(snapshots) {
 }
 
 /**
- * 统一入口，与后端 /api/export 的 scope 参数保持一致。
+ * 统一入口，scope 决定导出哪一份。
  * @param {'trades'|'stats'|'snapshots'} scope
  */
 export function buildCsv(scope, { holdings = [], snapshots = [], rates = { CNY: 1 } } = {}) {

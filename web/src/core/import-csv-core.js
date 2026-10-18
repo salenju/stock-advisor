@@ -33,7 +33,7 @@ function digitsOf(code) {
   return d.replace(/^0+(?=\d)/, '') || d;
 }
 
-// 新建持仓（与 server.js createHolding 对齐的最小字段集）
+// 新建持仓（与 web/src/core/schema.js createHolding 对齐的最小字段集）
 function createHolding(name, code, region, type, costMethod) {
   const today = new Date().toISOString().slice(0, 10);
   return {

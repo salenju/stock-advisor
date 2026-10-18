@@ -1,4 +1,4 @@
-// 与 server.js / derive.js 的枚举保持一致；新增/修改枚举请在此处统一维护
+// 与 web/src/core/derive.js 的枚举保持一致；新增/修改枚举请在此处统一维护
 
 // 投资策略枚举（同时用于下拉选项与徽章样式）
 export const INVEST_STRATEGIES = [
@@ -25,7 +25,7 @@ export const TYPE_OPTIONS = [
   'ETF',
 ];
 
-// 成本核算方法（与 server/derive.js 的 COST_METHODS 一致）
+// 成本核算方法（与 web/src/core/derive.js 的 COST_METHODS 一致）
 export const COST_METHODS = [
   { value: 'LIFO', label: '后进先出（LIFO）', short: 'LIFO' },
   { value: 'FIFO', label: '先进先出（FIFO）', short: 'FIFO' },

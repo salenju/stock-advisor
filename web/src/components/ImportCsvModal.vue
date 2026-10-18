@@ -55,7 +55,7 @@ async function submit() {
   error.value = '';
   result.value = null;
   try {
-    // 两种数据模式走同一入口：服务端模式打 /api/import-csv，本地模式在浏览器内直接导入
+    // 两种数据模式走同一入口：解析与落库都在浏览器内完成
     result.value = await importCsv(csvText.value, { createMissing: createMissing.value });
     await fetchHoldings();
     emit('imported');

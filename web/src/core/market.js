@@ -1,5 +1,5 @@
 // 各市场交易时段判断（时区感知 + 周末 + 法定节假日）。
-// server/scheduler.js 与前端「本地数据模式」共用，保证"是否开盘"判断一致。
+// 前后端共用的交易时段判断（节假日由本地设置提供）。
 import { normalizeRegion } from './provider/tencent.js';
 
 // 各市场对应时区

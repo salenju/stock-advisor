@@ -1,18 +1,9 @@
 // 移动端布局度量检查：检测水平溢出、头部按钮边界、概览卡片、图表渲染
 import puppeteer from 'puppeteer-core';
-import { startServer } from './server/server.js';
+import { serveDist } from './scripts/static-server.mjs';
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const cfg = {
-  server: { host: '127.0.0.1', port: 0 },
-  fx: { rates: { USD_CNY: 7.0, HKD_CNY: 0.9 } },
-  notify: {},
-  schedule: {},
-};
-
-const server = startServer(cfg);
-await new Promise((r) => server.once('listening', r));
-const base = `http://127.0.0.1:${server.address().port}`;
+const { url: base, close } = await serveDist('dist');
 
 const browser = await puppeteer.launch({
   executablePath: CHROME,
@@ -69,6 +60,6 @@ ok = (await check(375, 'iPhone SE')) && ok;
 ok = (await check(320, '超窄屏')) && ok;
 
 await browser.close();
-server.close();
+await close();
 console.log('\n结论:', ok ? '✅ 全部通过' : '❌ 存在问题');
 process.exit(ok ? 0 : 1);

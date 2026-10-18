@@ -1,7 +1,7 @@
 // 每日快照：把组合状态按日落盘，作为「真实历史记录」。
 //
 // 本文件只放纯函数（buildSnapshot / mergeSnapshots / upsertInList），
-// server/snapshot.js 与前端 localStore 共用，保证快照口径一致。
+// 由 localStore 与页面共用，保证快照口径一致。
 // 为什么需要：K 线重放依赖第三方接口，接口挂了就没有历史；
 // 快照记录的是当日实际收盘状态，比"用今天的交易记录回溯重算"更可信。
 import { withDerived, isActive } from './derive.js';

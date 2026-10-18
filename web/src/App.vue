@@ -3,13 +3,12 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { REFRESH_MS, REGION_LABEL } from './constants/options.js';
 import { useTheme } from './composables/useTheme.js';
 import { usePwa } from './composables/usePwa.js';
-import { useHoldings, getAuthToken, setAuthToken } from './composables/useHoldings.js';
-import { dataSource, isLocalMode, currentMode, MODE_BADGE, MODE_LABEL } from './services/dataSource.js';
+import { useHoldings } from './composables/useHoldings.js';
+import { currentMode, MODE_BADGE, MODE_LABEL } from './services/dataSource.js';
 
 import AppHeader from './components/AppHeader.vue';
 import OverviewCards from './components/OverviewCards.vue';
 import AllocationChart from './components/AllocationChart.vue';
-import TrendPanel from './components/TrendPanel.vue';
 import HoldingList from './components/HoldingList.vue';
 import StatsPanel from './components/StatsPanel.vue';
 import AddHoldingModal from './components/AddHoldingModal.vue';
@@ -31,10 +30,10 @@ const {
 // ---------- 数据模式 ----------
 // local  = 数据只存本机浏览器
 // github = 本机存储 + 加密同步到你的私有仓库（多设备）
-// server = 沿用原来的 Node 接口。切换会整页刷新。
+// 切换会整页刷新。
 const dataMode = currentMode();
-const modeBadge = MODE_BADGE[dataMode] || MODE_BADGE.server;
-const modeFullLabel = MODE_LABEL[dataMode] || MODE_LABEL.server;
+const modeBadge = MODE_BADGE[dataMode] || MODE_BADGE.local;
+const modeFullLabel = MODE_LABEL[dataMode] || MODE_LABEL.local;
 
 // ---------- 页签 ----------
 // 支持 ?tab=stats 直达复盘统计（manifest 快捷方式 / 收藏链接可用）
@@ -61,39 +60,10 @@ function closeInstallTip() {
   dismissIosTip();
 }
 
-// ---------- 接口鉴权（仅在收到 401 提示时出现）----------
-const tokenInput = ref(getAuthToken());
-// 鉴权只与「服务端数据」模式有关；本地/云同步模式没有 token 概念
-const isServerMode = dataMode === 'server';
-const needToken = computed(() => isServerMode && /未授权/.test(error.value));
-function saveToken() {
-  setAuthToken(tokenInput.value);
-  refreshNow();
-}
-
 // ---------- 倒计时环形 ----------
 const RING_C = 2 * Math.PI * 7;
 const progress = computed(() => countdown.value / (REFRESH_MS / 1000));
 const ringOffset = computed(() => RING_C * (1 - progress.value));
-
-// ---------- 测试飞书推送 ----------
-const testing = ref(false);
-const testMsg = ref('');
-let testMsgTimer = null;
-async function testFeishu() {
-  testing.value = true;
-  testMsg.value = '';
-  try {
-    await dataSource().testFeishu();
-    testMsg.value = '已发送测试消息到飞书 ✓';
-  } catch (e) {
-    testMsg.value = e.message;
-  } finally {
-    testing.value = false;
-    clearTimeout(testMsgTimer);
-    testMsgTimer = setTimeout(() => (testMsg.value = ''), 6000);
-  }
-}
 
 // ---------- 弹窗状态 ----------
 const showAdd = ref(false);
@@ -188,7 +158,6 @@ onMounted(() => {
 });
 onUnmounted(() => {
   stopAutoRefresh();
-  clearTimeout(testMsgTimer);
 });
 </script>
 
@@ -200,17 +169,13 @@ onUnmounted(() => {
       :error="error"
       :countdown="countdown"
       :is-dark="isDark"
-      :testing="testing"
-      :test-msg="testMsg"
       :can-install="canInstall"
-      :feishu-enabled="isServerMode"
       :mode-label="modeBadge"
       :mode-title="modeFullLabel"
       :ring-c="RING_C"
       :ring-offset="ringOffset"
       @toggle-theme="toggleTheme"
       @refresh="refreshNow"
-      @test-feishu="testFeishu"
       @install="handleInstall"
       @add="showAdd = true"
       @import-csv="showImport = true"
@@ -229,15 +194,6 @@ onUnmounted(() => {
           <li>在弹出菜单里选择「添加到主屏幕」</li>
           <li>点右上角「添加」，桌面会出现「股票秘书」图标</li>
         </ol>
-      </div>
-
-      <!-- 鉴权提示（仅 401 时出现） -->
-      <div v-if="needToken" class="mb-4 rounded-xl border border-warning/50 bg-warning/10 p-3 text-xs">
-        <div class="mb-2 opacity-80">该服务已启用接口鉴权，请填入 config.json 中设置的 <code>auth.token</code>：</div>
-        <div class="flex flex-wrap items-center gap-2">
-          <input v-model="tokenInput" type="password" class="input input-bordered input-xs w-56" placeholder="auth.token" @keyup.enter="saveToken" />
-          <button @click="saveToken" class="btn btn-xs btn-primary">保存并刷新</button>
-        </div>
       </div>
 
       <!-- 页签 -->
@@ -272,8 +228,6 @@ onUnmounted(() => {
         />
 
         <AllocationChart :holdings="filteredHoldings" :is-dark="isDark" :fx-rates="fxRates" />
-
-        <TrendPanel :is-dark="isDark" />
 
         <!-- 多选标签过滤 -->
         <div class="mb-4 flex flex-wrap items-center gap-2">

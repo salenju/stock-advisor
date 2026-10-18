@@ -1,7 +1,6 @@
 // 持仓数据 schema：新建默认值、旧版本迁移、变更指纹。
 //
-// 前后端共享：server/store.js（文件存储）与 web/src/store/localStore.js（浏览器存储）
-// 都从这里取迁移与指纹逻辑，保证「本地模式」和「服务端模式」的数据形态完全一致。
+// 被 web/src/store/localStore.js（浏览器存储）复用，保证读写两侧的数据形态一致。
 import { normalizeCostMethod, normalizePurchase, syncFromPurchases, newId } from './derive.js';
 
 // 当前数据结构版本（迁移函数会把旧数据补齐到该版本）

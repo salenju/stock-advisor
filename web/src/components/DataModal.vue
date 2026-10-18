@@ -1,10 +1,9 @@
 <script setup>
 // 「数据」面板：数据放在哪、怎么备份、怎么换设备。
 //
-// 三种存放位置：
+// 两种存放位置：
 //   local  —— 只写进这台设备的浏览器（IndexedDB），不经过任何服务器。
 //   github —— 同样写本机，但额外加密同步到**你自己的私有仓库**，多设备共享。
-//   server —— 老的 Node 后端，支持飞书推送与历史趋势。
 //
 // 本地模式的代价是「清缓存 / 换浏览器 / 换设备」数据就没了，
 // 所以这里把「导出备份」做成一等公民，并在久未备份时主动提醒。
@@ -15,7 +14,6 @@ import {
   MODE_LABEL,
   localStore,
   resetLocalCache,
-  usesLocalStore,
   githubSync,
 } from '../services/dataSource.js';
 import { downloadText, downloadCsv } from '../core/csv.js';
@@ -32,9 +30,7 @@ const { exportCsv } = useHoldings();
 const mode = ref(currentMode());
 const isLocal = computed(() => mode.value === 'local');
 const isGithub = computed(() => mode.value === 'github');
-const isServer = computed(() => mode.value === 'server');
-// 本地与云同步模式都以本机 IndexedDB 为工作副本，备份/导入/回滚都适用
-const hasLocalData = computed(() => usesLocalStore());
+// 两种模式都以本机 IndexedDB 为工作副本，备份/导入/回滚都适用
 const info = ref(null);
 const backups = ref([]);
 const csvMsg = ref('');
@@ -87,7 +83,6 @@ function reset() {
 }
 
 async function refresh() {
-  if (!hasLocalData.value) return;
   try {
     info.value = await localStore.storageInfo();
     backups.value = await localStore.listBackups();
@@ -233,7 +228,7 @@ function switchMode(m) {
   }
   setMode(m);
   const label = MODE_LABEL[m];
-  if (!confirm(`切换到「${label}」？页面会重新加载。\n三种模式共用同一份本机数据，切换不会删除任何数据。`)) {
+  if (!confirm(`切换到「${label}」？页面会重新加载。\n两种模式共用同一份本机数据，切换不会删除任何数据。`)) {
     setMode(mode.value); // 用户取消 → 把模式改回去，别留下"已切换但没刷新"的怪状态
     return;
   }
@@ -264,7 +259,7 @@ function close() {
       <!-- 数据模式 -->
       <section class="mb-4 rounded-xl border border-base-300 p-3">
         <div class="mb-2 text-sm font-medium">数据存放位置</div>
-        <div class="grid gap-2 sm:grid-cols-3">
+        <div class="grid gap-2 sm:grid-cols-2">
           <button
             @click="switchMode('local')"
             class="rounded-lg border p-3 text-left text-xs transition"
@@ -284,15 +279,6 @@ function close() {
             <div v-if="isGithub" class="mt-1 font-medium text-primary">当前使用中</div>
             <div v-else-if="!githubSync.isConfigured()" class="mt-1 text-[11px] opacity-50">未配置</div>
           </button>
-          <button
-            @click="switchMode('server')"
-            class="rounded-lg border p-3 text-left text-xs transition"
-            :class="isServer ? 'border-primary bg-primary/10' : 'border-base-300 hover:bg-base-200'"
-          >
-            <div class="text-sm font-semibold">🖥️ 服务端数据</div>
-            <div class="mt-1 opacity-70">数据存在 Node 服务的 <code>data/holdings.json</code>，支持飞书推送与无人值守定时任务。</div>
-            <div v-if="isServer" class="mt-1 font-medium text-primary">当前使用中</div>
-          </button>
         </div>
         <p v-if="isGithub && !githubSync.isConfigured()" class="mt-2 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
           当前是云同步模式，但还没有配置仓库。请在下方填写「用户名 / 仓库名 / 令牌」，否则数据只存在本机。
@@ -302,140 +288,125 @@ function close() {
       <!-- GitHub 云同步配置（仅在云同步模式下显示） -->
       <GitHubSyncPanel :show="isGithub" @changed="refresh" />
 
-      <!-- 本地/云同步模式：备份 / 导入 / 存储概览 -->
-      <template v-if="hasLocalData">
-        <!-- 概览 -->
-        <section v-if="info" class="mb-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-          <div class="rounded-lg bg-base-200 p-2">
-            <div class="opacity-60">持仓</div>
-            <div class="text-base font-semibold tabular-nums">{{ info.holdingsCount }} 只</div>
-          </div>
-          <div class="rounded-lg bg-base-200 p-2">
-            <div class="opacity-60">快照</div>
-            <div class="text-base font-semibold tabular-nums">{{ info.snapshotsCount }} 条</div>
-          </div>
-          <div class="rounded-lg bg-base-200 p-2">
-            <div class="opacity-60">版本备份</div>
-            <div class="text-base font-semibold tabular-nums">{{ info.backups }} 份</div>
-          </div>
-          <div class="rounded-lg bg-base-200 p-2">
-            <div class="opacity-60">存储驱动</div>
-            <div class="text-base font-semibold">{{ info.driver }}</div>
-          </div>
-        </section>
-
-        <!-- 备份提醒 -->
-        <div v-if="needExportRemind" class="mb-4 rounded-xl border border-warning/50 bg-warning/10 p-3 text-xs">
-          <b>该导出备份了。</b>
-          <template v-if="isGithub">
-            <span v-if="daysSinceExport === null">云同步会保存数据，但导出一份本地存档更保险（令牌失效 / 仓库被删都能救回来）。</span>
-            <span v-else>距离上次导出已 {{ daysSinceExport }} 天，建议导出一份留档。</span>
-          </template>
-          <template v-else>
-            <span v-if="daysSinceExport === null">本设备还没有导出过备份，清浏览器数据 / 换设备会导致数据丢失。</span>
-            <span v-else>距离上次导出已 {{ daysSinceExport }} 天，建议导出一份留档。或者切到「GitHub 私有仓库」模式自动备份。</span>
-          </template>
+      <!-- 本机数据：备份 / 导入 / 存储概览 -->
+      <!-- 概览 -->
+      <section v-if="info" class="mb-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+        <div class="rounded-lg bg-base-200 p-2">
+          <div class="opacity-60">持仓</div>
+          <div class="text-base font-semibold tabular-nums">{{ info.holdingsCount }} 只</div>
         </div>
+        <div class="rounded-lg bg-base-200 p-2">
+          <div class="opacity-60">快照</div>
+          <div class="text-base font-semibold tabular-nums">{{ info.snapshotsCount }} 条</div>
+        </div>
+        <div class="rounded-lg bg-base-200 p-2">
+          <div class="opacity-60">版本备份</div>
+          <div class="text-base font-semibold tabular-nums">{{ info.backups }} 份</div>
+        </div>
+        <div class="rounded-lg bg-base-200 p-2">
+          <div class="opacity-60">存储驱动</div>
+          <div class="text-base font-semibold">{{ info.driver }}</div>
+        </div>
+      </section>
 
-        <!-- 导出 -->
-        <section class="mb-4 rounded-xl border border-base-300 p-3">
-          <div class="mb-2 text-sm font-medium">导出</div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button @click="exportBundle" class="btn btn-sm btn-primary" :disabled="!!busy">导出完整备份（JSON）</button>
-            <button @click="exportCsvScope('trades')" class="btn btn-sm btn-outline btn-info">交易明细 CSV</button>
-            <button @click="exportCsvScope('stats')" class="btn btn-sm btn-outline btn-success">归因统计 CSV</button>
-            <button @click="exportCsvScope('snapshots')" class="btn btn-sm btn-outline">每日快照 CSV</button>
+      <!-- 备份提醒 -->
+      <div v-if="needExportRemind" class="mb-4 rounded-xl border border-warning/50 bg-warning/10 p-3 text-xs">
+        <b>该导出备份了。</b>
+        <template v-if="isGithub">
+          <span v-if="daysSinceExport === null">云同步会保存数据，但导出一份本地存档更保险（令牌失效 / 仓库被删都能救回来）。</span>
+          <span v-else>距离上次导出已 {{ daysSinceExport }} 天，建议导出一份留档。</span>
+        </template>
+        <template v-else>
+          <span v-if="daysSinceExport === null">本设备还没有导出过备份，清浏览器数据 / 换设备会导致数据丢失。</span>
+          <span v-else>距离上次导出已 {{ daysSinceExport }} 天，建议导出一份留档。或者切到「GitHub 私有仓库」模式自动备份。</span>
+        </template>
+      </div>
+
+      <!-- 导出 -->
+      <section class="mb-4 rounded-xl border border-base-300 p-3">
+        <div class="mb-2 text-sm font-medium">导出</div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button @click="exportBundle" class="btn btn-sm btn-primary" :disabled="!!busy">导出完整备份（JSON）</button>
+          <button @click="exportCsvScope('trades')" class="btn btn-sm btn-outline btn-info">交易明细 CSV</button>
+          <button @click="exportCsvScope('stats')" class="btn btn-sm btn-outline btn-success">归因统计 CSV</button>
+          <button @click="exportCsvScope('snapshots')" class="btn btn-sm btn-outline">每日快照 CSV</button>
+        </div>
+        <p class="mt-2 text-xs opacity-60">
+          完整备份包含持仓、快照与汇率设置，是换设备 / 重装系统的唯一恢复途径；CSV 仅供 Excel 查看。
+          <span v-if="info?.lastExportAt">上次导出：{{ fmtTime(info.lastExportAt) }}</span>
+        </p>
+        <p v-if="csvMsg" class="mt-1 text-xs text-success">{{ csvMsg }}</p>
+      </section>
+
+      <!-- 导入 -->
+      <section class="mb-4 rounded-xl border border-base-300 p-3">
+        <div class="mb-2 text-sm font-medium">导入</div>
+        <label class="flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-base-300 p-4 text-center transition hover:border-primary">
+          <span class="text-xs">{{ fileName || '点击选择备份 JSON' }}</span>
+          <input type="file" accept=".json,application/json" class="hidden" @change="pickFile" />
+        </label>
+
+        <div v-if="bundle" class="mt-3 space-y-2 text-xs">
+          <div class="rounded-lg bg-base-200 p-2">
+            文件解析成功：<b>{{ bundle.holdings.length }}</b> 条持仓
+            <span v-if="bundle.snapshots.length">、{{ bundle.snapshots.length }} 条快照</span>
+            <span v-if="bundle.exportedAt">（导出于 {{ fmtTime(bundle.exportedAt) }}）</span>
           </div>
-          <p class="mt-2 text-xs opacity-60">
-            完整备份包含持仓、快照与汇率设置，是换设备 / 重装系统的唯一恢复途径；CSV 仅供 Excel 查看。
-            <span v-if="info?.lastExportAt">上次导出：{{ fmtTime(info.lastExportAt) }}</span>
-          </p>
-          <p v-if="csvMsg" class="mt-1 text-xs text-success">{{ csvMsg }}</p>
-        </section>
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="flex items-center gap-1.5">
+              <input v-model="importMode" type="radio" value="merge" class="radio radio-primary radio-xs" />
+              <span>合并（按 市场+代码 去重，记录更完整的一方优先）</span>
+            </label>
+            <label class="flex items-center gap-1.5">
+              <input v-model="importMode" type="radio" value="replace" class="radio radio-error radio-xs" />
+              <span>覆盖（用文件完全替换本地数据）</span>
+            </label>
+          </div>
+          <button @click="doImport" class="btn btn-sm btn-info" :disabled="!!busy">开始导入</button>
+        </div>
+      </section>
 
-        <!-- 导入 -->
-        <section class="mb-4 rounded-xl border border-base-300 p-3">
-          <div class="mb-2 text-sm font-medium">导入</div>
-          <label class="flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-base-300 p-4 text-center transition hover:border-primary">
-            <span class="text-xs">{{ fileName || '点击选择备份 JSON（或 data/holdings.json）' }}</span>
-            <input type="file" accept=".json,application/json" class="hidden" @change="pickFile" />
-          </label>
-
-          <div v-if="bundle" class="mt-3 space-y-2 text-xs">
-            <div class="rounded-lg bg-base-200 p-2">
-              文件解析成功：<b>{{ bundle.holdings.length }}</b> 条持仓
-              <span v-if="bundle.snapshots.length">、{{ bundle.snapshots.length }} 条快照</span>
-              <span v-if="bundle.exportedAt">（导出于 {{ fmtTime(bundle.exportedAt) }}）</span>
+      <!-- 版本备份时间线 -->
+      <section class="mb-4 rounded-xl border border-base-300 p-3">
+        <div class="mb-2 flex items-center justify-between">
+          <div class="text-sm font-medium">自动版本快照（最多保留 30 份）</div>
+          <button @click="backupNow" class="btn btn-xs btn-ghost">立即备份</button>
+        </div>
+        <p class="mb-2 text-xs opacity-60">每次交易数据变化前自动留一份，可回滚。回滚本身也会先备份当前状态。</p>
+        <div v-if="backups.length" class="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+          <div
+            v-for="b in backups"
+            :key="b.id"
+            class="flex items-center justify-between gap-2 rounded-lg bg-base-200 px-2.5 py-1.5 text-xs"
+          >
+            <div class="min-w-0">
+              <div class="truncate">{{ fmtTime(b.at) }}</div>
+              <div class="truncate opacity-60">{{ b.reason }} · {{ b.count }} 只 · {{ fmtSize(b.size) }}</div>
             </div>
-            <div class="flex flex-wrap items-center gap-3">
-              <label class="flex items-center gap-1.5">
-                <input v-model="importMode" type="radio" value="merge" class="radio radio-primary radio-xs" />
-                <span>合并（按 市场+代码 去重，记录更完整的一方优先）</span>
-              </label>
-              <label class="flex items-center gap-1.5">
-                <input v-model="importMode" type="radio" value="replace" class="radio radio-error radio-xs" />
-                <span>覆盖（用文件完全替换本地数据）</span>
-              </label>
-            </div>
-            <button @click="doImport" class="btn btn-sm btn-info" :disabled="!!busy">开始导入</button>
-          </div>
-        </section>
-
-        <!-- 版本备份时间线 -->
-        <section class="mb-4 rounded-xl border border-base-300 p-3">
-          <div class="mb-2 flex items-center justify-between">
-            <div class="text-sm font-medium">自动版本快照（最多保留 30 份）</div>
-            <button @click="backupNow" class="btn btn-xs btn-ghost">立即备份</button>
-          </div>
-          <p class="mb-2 text-xs opacity-60">每次交易数据变化前自动留一份，可回滚。回滚本身也会先备份当前状态。</p>
-          <div v-if="backups.length" class="max-h-64 space-y-1.5 overflow-y-auto pr-1">
-            <div
-              v-for="b in backups"
-              :key="b.id"
-              class="flex items-center justify-between gap-2 rounded-lg bg-base-200 px-2.5 py-1.5 text-xs"
-            >
-              <div class="min-w-0">
-                <div class="truncate">{{ fmtTime(b.at) }}</div>
-                <div class="truncate opacity-60">{{ b.reason }} · {{ b.count }} 只 · {{ fmtSize(b.size) }}</div>
-              </div>
-              <div class="flex shrink-0 gap-1">
-                <button @click="restore(b.id)" class="btn btn-xs btn-warning" :disabled="!!busy">回滚</button>
-                <button @click="removeBackup(b.id)" class="btn btn-xs btn-ghost">删除</button>
-              </div>
+            <div class="flex shrink-0 gap-1">
+              <button @click="restore(b.id)" class="btn btn-xs btn-warning" :disabled="!!busy">回滚</button>
+              <button @click="removeBackup(b.id)" class="btn btn-xs btn-ghost">删除</button>
             </div>
           </div>
-          <div v-else class="rounded-lg border border-dashed border-base-300 p-4 text-center text-xs opacity-50">
-            还没有备份（首次修改数据后会自动生成）
-          </div>
-        </section>
+        </div>
+        <div v-else class="rounded-lg border border-dashed border-base-300 p-4 text-center text-xs opacity-50">
+          还没有备份（首次修改数据后会自动生成）
+        </div>
+      </section>
 
-        <!-- 危险区 -->
-        <section class="mb-4 rounded-xl border border-error/40 p-3">
-          <div class="mb-2 text-sm font-medium text-error">危险操作</div>
-          <p class="mb-2 text-xs opacity-70">
-            清空本设备浏览器里的全部持仓、快照与备份（不可撤销，建议先导出备份）。
-            <span v-if="isGithub" class="text-warning">注意：这只清本机，云端仓库里的文件不会被删除；下次拉取会把数据带回来。</span>
-            输入「清空」以确认：
-          </p>
-          <div class="flex flex-wrap items-center gap-2">
-            <input v-model="confirmClear" class="input input-bordered input-xs w-32" placeholder="清空" />
-            <button @click="clearAll" class="btn btn-xs btn-error" :disabled="confirmClear !== '清空' || !!busy">清空本地数据</button>
-          </div>
-        </section>
-      </template>
-
-      <!-- 服务端模式说明 -->
-      <template v-else>
-        <section class="mb-4 rounded-xl border border-base-300 p-3 text-xs">
-          <p class="opacity-70">
-            当前数据存放在后端服务的 <code>data/holdings.json</code>（含自动备份目录 <code>data/backups/</code>）。
-            飞书提醒、无人值守的每日快照/收盘日报、历史收益趋势都由后端调度器提供。
-          </p>
-          <p class="mt-2 opacity-70">
-            若想把服务端数据搬到本机浏览器：先切到「本地数据」或「GitHub 私有仓库」，再在此面板导入 <code>data/holdings.json</code>（会自动识别）。
-          </p>
-        </section>
-      </template>
+      <!-- 危险区 -->
+      <section class="mb-4 rounded-xl border border-error/40 p-3">
+        <div class="mb-2 text-sm font-medium text-error">危险操作</div>
+        <p class="mb-2 text-xs opacity-70">
+          清空本设备浏览器里的全部持仓、快照与备份（不可撤销，建议先导出备份）。
+          <span v-if="isGithub" class="text-warning">注意：这只清本机，云端仓库里的文件不会被删除；下次拉取会把数据带回来。</span>
+          输入「清空」以确认：
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <input v-model="confirmClear" class="input input-bordered input-xs w-32" placeholder="清空" />
+          <button @click="clearAll" class="btn btn-xs btn-error" :disabled="confirmClear !== '清空' || !!busy">清空本地数据</button>
+        </div>
+      </section>
 
       <!-- 反馈 -->
       <p v-if="msg" class="mb-2 rounded-lg bg-success/10 px-3 py-2 text-xs text-success">{{ msg }}</p>

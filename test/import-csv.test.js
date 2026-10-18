@@ -1,7 +1,7 @@
 // CSV 导入回归单测：匹配规则 + 幂等性
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { importCsvText, parseCsvText } from '../server/import-csv-core.js';
+import { importCsvText, parseCsvText } from '../web/src/core/import-csv-core.js';
 
 // 现网 CSV 表头格式
 const CSV_HEADER = '序号,股票/基金名称,代码,地区,类型,操作,买入日期,买入数量,买入价';

@@ -16,7 +16,7 @@ const KLINE_TTL_MS = 10 * 60 * 1000;
 // code → { fetchedAt, bars: [{date, close}] }
 const fundCache = new Map();
 
-/** 是否为场外基金（与 server/scheduler.js 的判断一致） */
+/** 是否为场外基金 */
 export function isFundHolding(h) {
   return String(h?.type || '').includes('基金');
 }

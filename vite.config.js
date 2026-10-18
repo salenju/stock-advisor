@@ -2,12 +2,11 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 // 前端（Vue3 + Vite）源码放在 web/ 子目录，打包产物输出到项目根 dist/，
-// 由后端 Node 服务（server/server.js）统一托管。
-// 开发时 `npm run dev` 启动 Vite 开发服务器并代理 /api 到本地后端（:3000）。
+// 由 GitHub Pages 等静态托管直接发布（项目里没有任何后端进程）。
 export default defineConfig({
   root: 'web',
   // base：部署在子路径时用它指定前缀，例如 GitHub Pages 项目站点是 /<repo>/。
-  // 本地开发与「后端托管 dist（根路径）」保持默认 '/'；CI 里通过 VITE_BASE 注入。
+  // 本地开发与自定义域名保持默认 '/'；CI 里通过 VITE_BASE 注入。
   base: process.env.VITE_BASE || '/',
   plugins: [vue()],
   build: {
@@ -26,11 +25,5 @@ export default defineConfig({
     // host: true 绑定 0.0.0.0，支持通过本机 IP（局域网）访问，启动日志会打印 Network 地址
     host: true,
     port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:3000',
-        changeOrigin: true,
-      },
-    },
   },
 });

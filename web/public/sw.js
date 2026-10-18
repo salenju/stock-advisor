@@ -2,15 +2,15 @@
  * 目标：让应用可「安装」（PWA）并在离线/弱网时仍能打开界面。
  *
  * 路径策略：所有内部路径都用 self.registration.scope 拼出来，
- * 因此同一个 sw.js 既能跑在根路径（后端托管 dist），
+ * 因此同一个 sw.js 既能跑在根路径（自定义域名），
  * 也能跑在子路径（GitHub Pages 的 /<repo>/）下。
  *
  * 缓存策略：
  *  - 导航请求（HTML）：网络优先，失败回退缓存的 app shell（离线可打开）。
  *  - 静态资源（assets/*、图标、manifest）：缓存优先（Vite 产物带 hash，天然可长缓存）。
- *  - 接口请求（/api/*）：一律走网络，不缓存（行情/持仓需实时，且带鉴权）。
+ *  - 跨域行情请求（腾讯/东财）：不接管，由页面直连拿实时数据。
  */
-const VERSION = 'v2';
+const VERSION = 'v3';
 /** 部署根路径，形如 '/' 或 '/stock-advisor/' */
 const BASE = new URL(self.registration.scope).pathname;
 const SHELL_CACHE = `stock-shell-${VERSION}`;
@@ -55,9 +55,8 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const u = new URL(request.url);
-  // 只处理同源请求；接口请求不接管
+  // 只处理同源静态资源；行情请求是跨域的，天然不会被接管
   if (u.origin !== self.location.origin) return;
-  if (u.pathname.startsWith(`${BASE}api/`)) return;
 
   // 页面导航：网络优先，离线回退 app shell
   if (request.mode === 'navigate') {

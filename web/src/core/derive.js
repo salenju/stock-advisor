@@ -1,8 +1,7 @@
 // 交易与持仓的统一派生计算（唯一口径）。
 //
-// 背景：原先 server.js（withDerived/syncFromPurchases）、strategy.js（agg）、
-// import-csv-core.js（computeSellCost/syncFromPurchases）各自实现了一套聚合逻辑，
-// 改口径需要改三处，容易出现不一致。本模块把口径收敛为一处，三边共用。
+// 背景：withDerived/syncFromPurchases、策略聚合、CSV 导入的卖出成本，
+// 原先各自实现了一套逻辑，改口径要改多处。本模块把口径收敛到一处，其余模块共用。
 //
 // 成本口径（重要）：
 //   历史卖出记录的 costPrice / profit 是「录入时点」按当时的持仓批次算出来的，

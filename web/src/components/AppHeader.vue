@@ -8,17 +8,14 @@ defineProps({
   error: { type: String, default: '' },
   countdown: { type: Number, default: 0 },
   isDark: { type: Boolean, default: true },
-  testing: { type: Boolean, default: false },
-  testMsg: { type: String, default: '' },
   canInstall: { type: Boolean, default: false },
-  feishuEnabled: { type: Boolean, default: true },
   modeLabel: { type: String, default: '' },
   modeTitle: { type: String, default: '' },
   ringC: { type: Number, required: true },
   ringOffset: { type: Number, required: true },
 });
 
-const emit = defineEmits(['toggle-theme', 'refresh', 'test-feishu', 'add', 'import-csv', 'install', 'open-data']);
+const emit = defineEmits(['toggle-theme', 'refresh', 'add', 'import-csv', 'install', 'open-data']);
 
 // 手机上按钮太多会挤成两三行，把低频操作收进「更多」菜单。
 // 桌面端（sm 及以上）仍然全部平铺，菜单不参与布局。
@@ -64,7 +61,7 @@ onUnmounted(() => {
             >{{ modeLabel }}</span>
           </h1>
           <p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] opacity-60 sm:text-xs">
-            <span class="hidden sm:inline">持仓 · 实时行情 · 飞书阈值提醒</span>
+            <span class="hidden sm:inline">持仓 · 实时行情 · 复盘统计</span>
             <span v-if="lastUpdated" class="hidden sm:inline">· 更新于 {{ lastUpdated }}</span>
             <span v-if="loading" class="text-info">刷新中…</span>
             <span class="inline-flex items-center gap-1">
@@ -109,13 +106,6 @@ onUnmounted(() => {
               style="background-color: #f40; border-color: #f40;"
               title="导入 CSV 买卖记录"
             >导入 CSV</button>
-            <button
-              v-if="feishuEnabled"
-              @click="emit('test-feishu')"
-              :disabled="testing"
-              :title="testing ? '发送中…' : '向飞书机器人发送一条测试消息'"
-              class="btn btn-warning btn-sm"
-            >{{ testing ? '发送中…' : '测试飞书' }}</button>
           </div>
 
           <!-- 手机端「更多」 -->
@@ -142,25 +132,13 @@ onUnmounted(() => {
               <li>
                 <button @click="fire('import-csv')" class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200">📥 导入 CSV</button>
               </li>
-              <li v-if="feishuEnabled">
-                <button
-                  @click="fire('test-feishu')"
-                  :disabled="testing"
-                  class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200 disabled:opacity-40"
-                >🔔 {{ testing ? '发送中…' : '测试飞书' }}</button>
-              </li>
             </ul>
           </div>
         </div>
       </div>
 
-      <!-- 错误 / 测试结果：单独一行，避免挤坏按钮 -->
+      <!-- 错误：单独一行，避免挤坏按钮 -->
       <p v-if="error" class="mt-1.5 text-[11px] leading-snug text-error sm:text-xs">{{ error }}</p>
-      <p
-        v-if="testMsg"
-        class="mt-1 text-[11px] sm:text-xs"
-        :class="testMsg.includes('✓') ? 'text-success' : 'text-error'"
-      >{{ testMsg }}</p>
     </div>
   </header>
 </template>

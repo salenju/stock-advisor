@@ -1,5 +1,5 @@
 // 币种相关纯函数：地区 → 币种、外币金额换算人民币、按币种分组汇总。
-// 无副作用、无状态，供 server.js / trend.js / 测试复用。
+// 无副作用、无状态，供页面与测试复用。
 import { normalizeRegion } from './provider/tencent.js';
 
 // 地区前缀 → 币种（人民币/港币/美元）

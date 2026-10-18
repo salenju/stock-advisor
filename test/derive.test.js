@@ -10,8 +10,8 @@ import {
   unitCostOf,
   dateKey,
   isActive,
-} from '../server/derive.js';
-import { migrateHolding } from '../server/store.js';
+} from '../web/src/core/derive.js';
+import { migrateHolding } from '../web/src/core/schema.js';
 
 // 构造一个最小持仓
 function H(over = {}) {

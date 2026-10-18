@@ -14,7 +14,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { startServer } from './server/server.js';
+import { serveDist } from './scripts/static-server.mjs';
 import { textToBase64, base64ToText, unwrapPayload } from './web/src/core/sync-payload.js';
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -236,18 +236,10 @@ async function newCleanPage(browser, base, repo) {
 }
 
 // ============================ 主流程 ============================
-console.log('构建 dist（服务端托管的是 dist，不是源码）…');
+console.log('构建 dist（检查的是真实构建产物，不是源码）…');
 execFileSync('npm', ['run', 'build'], { stdio: 'ignore' });
 
-const server = startServer({
-  server: { port: 0, host: '127.0.0.1' },
-  auth: { token: '' },
-  fx: { rates: {} },
-  notify: {},
-  schedule: {},
-});
-await new Promise((r) => server.once('listening', r));
-const base = `http://127.0.0.1:${server.address().port}`;
+const { url: base, close } = await serveDist('dist');
 
 const profiles = [
   mkdtempSync(path.join(tmpdir(), 'stock-sync-a-')),
@@ -396,7 +388,7 @@ try {
   failures += 1;
 } finally {
   for (const b of browsers) await b.close().catch(() => {});
-  server.close?.();
+  await close();
   for (const p of profiles) rmSync(p, { recursive: true, force: true });
 }
 
