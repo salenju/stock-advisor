@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useHoldings } from '../composables/useHoldings.js';
+import BaseModal from './BaseModal.vue';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -57,44 +58,42 @@ async function submitBuy() {
 </script>
 
 <template>
-  <dialog class="modal" :class="{ 'modal-open': show }">
-    <div class="modal-box">
-      <h2 class="mb-1 text-lg font-semibold">
-        {{ buyForm.pid ? '修改买入记录' : '添加买入记录' }} · {{ buyForm.name }}
-      </h2>
-      <p class="mb-4 text-xs opacity-60">同一股票可记录多次买入，各自设置不同的止盈/止损比例</p>
+  <BaseModal
+    :show="show"
+    :title="`${buyForm.pid ? '修改买入记录' : '添加买入记录'} · ${buyForm.name}`"
+    subtitle="同一股票可记录多次买入，各自设置不同的止盈/止损比例"
+    @close="emit('close')"
+  >
       <div class="space-y-3">
         <label class="block text-sm">
-          <span class="mb-1 block opacity-60">买入价</span>
+          <span class="mb-1 block text-muted">买入价</span>
           <input v-model="buyPrice" type="number" step="0.01" class="input input-bordered w-full" />
         </label>
         <label class="block text-sm">
-          <span class="mb-1 block opacity-60">买入数量</span>
+          <span class="mb-1 block text-muted">买入数量</span>
           <input v-model="buyQuantity" type="number" step="1" class="input input-bordered w-full" />
         </label>
         <label class="block text-sm">
-          <span class="mb-1 block opacity-60">买入日期</span>
+          <span class="mb-1 block text-muted">买入日期</span>
           <input v-model="buyTime" type="date" class="input input-bordered w-full" />
         </label>
         <label class="block text-sm">
-          <span class="mb-1 block opacity-60">手续费（可选，计入成本）</span>
+          <span class="mb-1 block text-muted">手续费（可选，计入成本）</span>
           <input v-model="fee" type="number" step="0.01" class="input input-bordered w-full" placeholder="0" />
         </label>
         <label class="block text-sm">
-          <span class="mb-1 block opacity-60">止盈收益率 %</span>
+          <span class="mb-1 block text-muted">止盈收益率 %</span>
           <input v-model="targetProfitRate" type="number" step="0.1" class="input input-bordered w-full" />
         </label>
         <label class="block text-sm">
-          <span class="mb-1 block opacity-60">止损收益率 %</span>
+          <span class="mb-1 block text-muted">止损收益率 %</span>
           <input v-model="stopLossRate" type="number" step="0.1" class="input input-bordered w-full" />
         </label>
       </div>
       <p v-if="buyError" class="mt-3 text-sm text-error">{{ buyError }}</p>
-      <div class="modal-action">
-        <button @click="emit('close')" class="btn btn-sm btn-info">取消</button>
-        <button @click="submitBuy" class="btn btn-sm btn-primary">保存</button>
-      </div>
-    </div>
-    <form class="modal-backdrop" @click="emit('close')"></form>
-  </dialog>
+    <template #footer>
+      <button @click="emit('close')" class="btn btn-sm btn-ghost">取消</button>
+      <button @click="submitBuy" class="btn btn-sm btn-primary">保存</button>
+    </template>
+  </BaseModal>
 </template>

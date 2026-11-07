@@ -19,13 +19,15 @@ import {
 import { downloadText, downloadCsv } from '../core/csv.js';
 import { useHoldings } from '../composables/useHoldings.js';
 import GitHubSyncPanel from './GitHubSyncPanel.vue';
+import BaseModal from './BaseModal.vue';
+import AppIcon from './AppIcon.vue';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
 });
 const emit = defineEmits(['close', 'changed']);
 
-const { exportCsv } = useHoldings();
+const { exportCsv, setCostMethodAll } = useHoldings();
 
 const mode = ref(currentMode());
 const isLocal = computed(() => mode.value === 'local');
@@ -204,6 +206,24 @@ async function backupNow() {
   await refresh();
 }
 
+// ---------- 成本法批量切换 ----------
+// 只改「卖出时先扣哪一批」的口径；已记录的卖出成本是账本事实，不会被改写。
+async function applyCostMethod(method) {
+  const label = method === 'FIFO' ? '先买先卖（FIFO）' : '后进先出（LIFO）';
+  const tip = `把所有持仓的成本法改为「${label}」？\n\n只影响之后卖出时的成本计算与「逐笔买入收益」的批次归属；已记录的卖出成本/盈亏不会改写。`;
+  if (!confirm(tip)) return;
+  busy.value = '切换中…';
+  err.value = '';
+  try {
+    await setCostMethodAll(method);
+    msg.value = `已把全部持仓改为「${label}」。历史卖出成本未改写；若展开持仓看到「批次成本合计对不上」，点那里的「按当前成本法重算」即可。`;
+  } catch (e) {
+    err.value = e.message;
+  } finally {
+    busy.value = '';
+  }
+}
+
 // ---------- 清空 ----------
 async function clearAll() {
   if (confirmClear.value !== '清空') return;
@@ -246,19 +266,12 @@ function close() {
 </script>
 
 <template>
-  <dialog class="modal" :class="{ 'modal-open': show }">
-    <div class="modal-box max-w-3xl">
-      <div class="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <h2 class="text-lg font-semibold">数据与备份</h2>
-          <p class="mt-0.5 text-xs opacity-60">
-            当前模式：<b>{{ MODE_LABEL[mode] }}</b>
-            <span v-if="isLocal">· 数据只存在这台设备的浏览器里，不会上传到任何服务器</span>
-            <span v-else-if="isGithub">· 本机留一份，加密同步到你自己的私有仓库</span>
-          </p>
-        </div>
-        <button @click="close" class="rounded px-1.5 text-xl leading-none opacity-60 hover:opacity-100" title="关闭">×</button>
-      </div>
+  <BaseModal :show="show" title="数据与备份" size="xl" @close="close">
+    <template #subtitle>
+      当前模式：<b>{{ MODE_LABEL[mode] }}</b>
+      <span v-if="isLocal">· 数据只存在这台设备的浏览器里，不会上传到任何服务器</span>
+      <span v-else-if="isGithub">· 本机留一份，加密同步到你自己的私有仓库</span>
+    </template>
 
       <!-- 数据模式 -->
       <section class="mb-4 rounded-xl border border-base-300 p-3">
@@ -269,7 +282,9 @@ function close() {
             class="rounded-lg border p-3 text-left text-xs transition"
             :class="isLocal ? 'border-primary bg-primary/10' : 'border-base-300 hover:bg-base-200'"
           >
-            <div class="text-sm font-semibold">🔒 本地数据</div>
+            <div class="flex items-center gap-1.5 text-sm font-semibold">
+              <AppIcon name="lock" :size="15" /> 本地数据
+            </div>
             <div class="mt-1 opacity-70">存在本机浏览器（IndexedDB），零服务器、零上传，隐私最好；但换设备要手动导出导入。</div>
             <div v-if="isLocal" class="mt-1 font-medium text-primary">当前使用中</div>
           </button>
@@ -278,10 +293,12 @@ function close() {
             class="rounded-lg border p-3 text-left text-xs transition"
             :class="isGithub ? 'border-primary bg-primary/10' : 'border-base-300 hover:bg-base-200'"
           >
-            <div class="text-sm font-semibold">☁️ GitHub 私有仓库</div>
+            <div class="flex items-center gap-1.5 text-sm font-semibold">
+              <AppIcon name="cloud" :size="15" /> GitHub 私有仓库
+            </div>
             <div class="mt-1 opacity-70">本机照常离线可用，改动自动加密同步到<b>你自己的私有仓库</b>，手机电脑都能接着用。</div>
             <div v-if="isGithub" class="mt-1 font-medium text-primary">当前使用中</div>
-            <div v-else-if="!githubSync.isConfigured()" class="mt-1 text-[11px] opacity-50">未配置</div>
+            <div v-else-if="!githubSync.isConfigured()" class="mt-1 text-[11px] text-subtle">未配置</div>
           </button>
         </div>
         <p v-if="isGithub && !githubSync.isConfigured()" class="mt-2 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
@@ -370,6 +387,24 @@ function close() {
         </div>
       </section>
 
+      <!-- 成本核算方法 -->
+      <section class="mb-4 rounded-xl border border-base-300 p-3">
+        <div class="mb-2 text-sm font-medium">成本核算方法</div>
+        <p class="mb-2 text-xs text-muted">
+          决定卖出时先扣哪一批买入。<b>先买先卖（FIFO）是默认口径</b>，也符合「先买的先卖掉」的直觉；
+          后进先出（LIFO）会先卖掉最近买的那笔。切换只影响之后卖出与「逐笔买入收益」的批次归属，
+          已记录的卖出成本不会被改写。
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <button @click="applyCostMethod('FIFO')" class="btn btn-sm btn-primary" :disabled="!!busy">
+            全部改为先买先卖（FIFO）
+          </button>
+          <button @click="applyCostMethod('LIFO')" class="btn btn-sm btn-outline" :disabled="!!busy">
+            全部改为后进先出（LIFO）
+          </button>
+        </div>
+      </section>
+
       <!-- 版本备份时间线 -->
       <section class="mb-4 rounded-xl border border-base-300 p-3">
         <div class="mb-2 flex items-center justify-between">
@@ -393,7 +428,7 @@ function close() {
             </div>
           </div>
         </div>
-        <div v-else class="rounded-lg border border-dashed border-base-300 p-4 text-center text-xs opacity-50">
+        <div v-else class="rounded-lg border border-dashed border-base-300 p-4 text-center text-xs text-muted">
           还没有备份（首次修改数据后会自动生成）
         </div>
       </section>
@@ -416,11 +451,9 @@ function close() {
       <p v-if="msg" class="mb-2 rounded-lg bg-success/10 px-3 py-2 text-xs text-success">{{ msg }}</p>
       <p v-if="err" class="mb-2 rounded-lg bg-error/10 px-3 py-2 text-xs text-error">{{ err }}</p>
 
-      <div class="modal-action">
-        <span v-if="busy" class="mr-auto text-xs opacity-60">{{ busy }}</span>
-        <button @click="close" class="btn btn-sm btn-primary" :disabled="!!busy">关闭</button>
-      </div>
-    </div>
-    <form class="modal-backdrop" @click="close"></form>
-  </dialog>
+    <template #footer>
+      <span v-if="busy" class="mr-auto text-xs text-muted">{{ busy }}</span>
+      <button @click="close" class="btn btn-sm btn-primary" :disabled="!!busy">关闭</button>
+    </template>
+  </BaseModal>
 </template>

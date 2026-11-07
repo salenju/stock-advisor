@@ -7,6 +7,7 @@ import {
 import { useHoldings } from '../composables/useHoldings.js';
 import { COST_METHODS } from '../constants/options.js';
 import PurchaseTable from './PurchaseTable.vue';
+import AppIcon from './AppIcon.vue';
 
 const props = defineProps({
   holding: { type: Object, required: true },
@@ -23,7 +24,7 @@ function toggleExpand() {
 
 const costMethodLabel = computed(() => {
   const m = COST_METHODS.find((x) => x.value === props.holding.costMethod);
-  return m ? m.short : props.holding.costMethod || 'LIFO';
+  return m ? m.short : props.holding.costMethod || 'FIFO';
 });
 
 // ---------- 日涨跌告警 + 移动止盈 行内编辑 ----------
@@ -39,7 +40,7 @@ function startEditAlert() {
   editDrop.value = props.holding.dailyDropAlertPct != null ? String(props.holding.dailyDropAlertPct) : '';
   editRise.value = props.holding.dailyRiseAlertPct != null ? String(props.holding.dailyRiseAlertPct) : '';
   editTrailing.value = props.holding.trailingStopPct != null ? String(props.holding.trailingStopPct) : '';
-  editCostMethod.value = props.holding.costMethod || 'LIFO';
+  editCostMethod.value = props.holding.costMethod || 'FIFO';
   alertMsg.value = '';
   editingAlert.value = true;
   nextTick(() => dropInput.value?.focus());
@@ -77,8 +78,10 @@ async function onClickRecompute() {
       <div class="flex items-center gap-3">
         <button
           @click="toggleExpand"
-          class="flex h-7 w-7 items-center justify-center opacity-60 transition hover:opacity-100"
+          class="hit-area flex h-7 w-7 items-center justify-center text-base-content/70 transition hover:text-base-content"
           :title="expanded ? '收起明细' : '展开明细'"
+          :aria-label="expanded ? '收起明细' : '展开明细'"
+          :aria-expanded="expanded"
         >
           <svg
             class="h-4 w-4 transition-transform"
@@ -101,6 +104,39 @@ async function onClickRecompute() {
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <!-- 告警设置：日涨跌告警 / 移动止盈 / 成本法 -->
+        <div class="flex flex-wrap items-center gap-1 rounded-lg border border-base-300 px-2 py-1 text-xs">
+          <span class="opacity-60">告警</span>
+          <template v-if="editingAlert">
+            <input ref="dropInput" v-model="editDrop" type="number" step="0.1" class="input input-bordered input-xs w-14 tabular-nums" placeholder="跌%" @keyup.enter="saveAlert" @keyup.escape="cancelAlert" />
+            <span class="opacity-40">/</span>
+            <input v-model="editRise" type="number" step="0.1" class="input input-bordered input-xs w-14 tabular-nums" placeholder="涨%" @keyup.enter="saveAlert" @keyup.escape="cancelAlert" />
+            <input v-model="editTrailing" type="number" step="0.1" class="input input-bordered input-xs w-16 tabular-nums" placeholder="回撤%" title="移动止盈：从持仓期最高收益率回撤该幅度即提醒" @keyup.enter="saveAlert" @keyup.escape="cancelAlert" />
+            <select v-model="editCostMethod" class="select select-bordered select-xs tabular-nums">
+              <option v-for="m in COST_METHODS" :key="m.value" :value="m.value">{{ m.short }}</option>
+            </select>
+            <button @click="saveAlert" class="text-success hover:text-success/70 font-bold text-sm leading-none" title="保存">✓</button>
+            <button @click="cancelAlert" class="text-error hover:text-error/70 font-bold text-sm leading-none" title="取消">✕</button>
+            <span v-if="alertMsg" class="text-error">{{ alertMsg }}</span>
+          </template>
+          <template v-else>
+            <span v-if="holding.dailyDropAlertPct != null || holding.dailyRiseAlertPct != null" class="tabular-nums">
+              <span class="text-success">-{{ fmt(holding.dailyDropAlertPct) }}%</span> / <span class="text-error">+{{ fmt(holding.dailyRiseAlertPct) }}%</span>
+            </span>
+            <span v-else class="text-subtle">日涨跌未设置</span>
+            <span class="opacity-40">·</span>
+            <span v-if="Number(holding.trailingStopPct) > 0" class="tabular-nums" :title="`持仓期最高收益率 ${fmt(holding.peakReturnRate)}%`">
+              移动止盈 {{ fmt(holding.trailingStopPct) }}%
+            </span>
+            <span v-else class="text-subtle">移动止盈关</span>
+            <button
+              @click="startEditAlert"
+              class="hit-area ml-0.5 align-middle text-primary hover:text-primary/70"
+              title="设置日涨跌告警 / 移动止盈 / 成本法"
+              aria-label="设置日涨跌告警、移动止盈与成本法"
+            ><AppIcon name="pencil" :size="14" /></button>
+          </template>
+        </div>
         <button @click="emit('open-add-buy')" class="btn btn-success btn-xs">+ 买入记录</button>
         <button @click="emit('open-txn', 'SELL')" class="btn btn-error btn-xs">+ 卖出记录</button>
         <button @click="emit('open-txn', 'DIVIDEND')" class="btn btn-warning btn-xs">+ 分红</button>
@@ -109,24 +145,24 @@ async function onClickRecompute() {
     </div>
 
     <!-- 汇总指标：极窄屏(<360px)单列，常规手机双列，桌面自适应 -->
-    <div class="grid grid-cols-1 gap-x-3 gap-y-3 border-t border-base-300 px-3 py-3 min-[360px]:grid-cols-2 sm:grid-cols-4 sm:gap-x-4 sm:px-4 sm:py-4 lg:grid-cols-7">
+    <div class="grid grid-cols-1 gap-x-3 gap-y-3 border-t border-base-300 px-3 py-3 min-[360px]:grid-cols-2 sm:grid-cols-3 sm:gap-x-4 sm:px-4 sm:py-4 lg:grid-cols-6">
       <div class="min-w-0">
         <div class="text-xs opacity-60">市值 / 数量</div>
-        <div class="mt-0.5 truncate text-xs tabular-nums sm:text-sm">{{ holding.currencyCode }} {{ fmtMoney(holding.marketValue) }} <span class="opacity-40">/</span> {{ fmtQty(holding.buyQuantity) }}</div>
+        <div class="mt-0.5 break-words text-xs tabular-nums leading-snug sm:text-sm">{{ holding.currencyCode }} {{ fmtMoney(holding.marketValue) }} <span class="opacity-40">/</span> {{ fmtQty(holding.buyQuantity) }}</div>
       </div>
       <div class="min-w-0">
         <div class="text-xs opacity-60">成本 / 现价</div>
-        <div class="mt-0.5 truncate text-xs tabular-nums sm:text-sm">{{ holding.currencyCode }} {{ fmtPrice(holding.avgCost) }} <span class="opacity-40">/</span> {{ fmtPrice(holding.currentPrice) }}</div>
+        <div class="mt-0.5 break-words text-xs tabular-nums leading-snug sm:text-sm">{{ holding.currencyCode }} {{ fmtPrice(holding.avgCost) }} <span class="opacity-40">/</span> {{ fmtPrice(holding.currentPrice) }}</div>
       </div>
       <div class="min-w-0">
         <div class="text-xs opacity-60">今日收益 / 收益率</div>
-        <div class="mt-0.5 truncate text-xs tabular-nums font-medium sm:text-sm" :class="profitCls(holding.todayProfit)">
+        <div class="mt-0.5 break-words text-xs tabular-nums font-medium leading-snug sm:text-sm" :class="profitCls(holding.todayProfit)">
           {{ holding.currencyCode }} {{ fmtMoney(holding.todayProfit) }} <span class="opacity-40">/</span> {{ fmtPct(holding.todayReturnRate) }}
         </div>
       </div>
       <div class="min-w-0">
         <div class="text-xs opacity-60">持仓收益 / 收益率</div>
-        <div class="mt-0.5 truncate text-xs tabular-nums font-medium sm:text-sm" :class="profitCls(holding.holdingProfit)">
+        <div class="mt-0.5 break-words text-xs tabular-nums font-medium leading-snug sm:text-sm" :class="profitCls(holding.holdingProfit)">
           {{ holding.currencyCode }} {{ fmtMoney(holding.holdingProfit) }} <span class="opacity-40">/</span> {{ fmtPct(holding.holdingReturnRate) }}
         </div>
       </div>
@@ -146,35 +182,6 @@ async function onClickRecompute() {
           {{ holding.currencyCode }} {{ fmtPrice(holding.refillPrice) }}
         </div>
       </div>
-      <div>
-        <div class="text-xs opacity-60">
-          告警设置
-          <button v-if="!editingAlert" @click="startEditAlert" class="ml-1 align-middle text-primary hover:text-primary/70" title="设置日涨跌告警 / 移动止盈 / 成本法">✎</button>
-        </div>
-        <div v-if="editingAlert" class="mt-0.5 flex flex-wrap items-center gap-1">
-          <input ref="dropInput" v-model="editDrop" type="number" step="0.1" class="input input-bordered input-xs w-14 tabular-nums" placeholder="跌%" @keyup.enter="saveAlert" @keyup.escape="cancelAlert" />
-          <span class="opacity-40">/</span>
-          <input v-model="editRise" type="number" step="0.1" class="input input-bordered input-xs w-14 tabular-nums" placeholder="涨%" @keyup.enter="saveAlert" @keyup.escape="cancelAlert" />
-          <input v-model="editTrailing" type="number" step="0.1" class="input input-bordered input-xs w-16 tabular-nums" placeholder="回撤%" title="移动止盈：从持仓期最高收益率回撤该幅度即提醒" @keyup.enter="saveAlert" @keyup.escape="cancelAlert" />
-          <select v-model="editCostMethod" class="select select-bordered select-xs tabular-nums">
-            <option v-for="m in COST_METHODS" :key="m.value" :value="m.value">{{ m.short }}</option>
-          </select>
-          <button @click="saveAlert" class="text-success hover:text-success/70 font-bold text-sm leading-none" title="保存">✓</button>
-          <button @click="cancelAlert" class="text-error hover:text-error/70 font-bold text-sm leading-none" title="取消">✕</button>
-          <span v-if="alertMsg" class="text-xs text-error">{{ alertMsg }}</span>
-        </div>
-        <div v-else class="mt-0.5 tabular-nums text-xs">
-          <span v-if="holding.dailyDropAlertPct != null || holding.dailyRiseAlertPct != null">
-            <span class="text-success">-{{ fmt(holding.dailyDropAlertPct) }}%</span> / <span class="text-error">+{{ fmt(holding.dailyRiseAlertPct) }}%</span>
-          </span>
-          <span v-else class="opacity-40">日涨跌未设置</span>
-          <span class="opacity-40"> · </span>
-          <span v-if="Number(holding.trailingStopPct) > 0" :title="`持仓期最高收益率 ${fmt(holding.peakReturnRate)}%`">
-            移动止盈 {{ fmt(holding.trailingStopPct) }}%
-          </span>
-          <span v-else class="opacity-40">移动止盈关</span>
-        </div>
-      </div>
     </div>
 
     <!-- 次要指标：已实现收益 / 分红 / 手续费 -->
@@ -189,7 +196,7 @@ async function onClickRecompute() {
         峰值收益率：<b class="tabular-nums">{{ fmt(holding.peakReturnRate) }}%</b>
       </span>
       <span v-if="holding.costMethod === 'WAC' || holding.costMethod === 'FIFO'" class="opacity-70">
-        <button @click="onClickRecompute" class="text-primary hover:underline" title="按当前成本法重算历史卖出成本（会改写历史记录）">按当前成本法重算历史成本</button>
+        <button @click="onClickRecompute" class="hit-area text-primary hover:underline" title="按当前成本法重算历史卖出成本（会改写历史记录）">按当前成本法重算历史成本</button>
       </span>
     </div>
 
@@ -200,6 +207,7 @@ async function onClickRecompute() {
         @edit="(p) => emit('edit-buy', p)"
         @delete="(p) => emit('delete-buy', p)"
         @delete-txn="(p) => emit('delete-txn', p)"
+        @recompute="onClickRecompute"
       />
     </div>
   </div>

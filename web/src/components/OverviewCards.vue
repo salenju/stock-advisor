@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { fmtMoney, fmt, profitCls } from '../composables/useFormat.js';
+import AppIcon from './AppIcon.vue';
 
 const props = defineProps({
   count: { type: Number, default: 0 },
@@ -56,17 +57,21 @@ const realizedTip = computed(() => buildTip('累计已实现收益', props.reali
 </script>
 
 <template>
-  <div class="mb-4 grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:mb-6 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
+  <div class="mb-4 grid grid-cols-1 gap-2.5 min-[360px]:grid-cols-2 min-[360px]:gap-3 sm:mb-6 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
     <div class="rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4">
-      <div class="text-xs opacity-60">持仓数</div>
+      <div class="text-xs text-muted">持仓数</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{{ count }}</div>
     </div>
 
     <div class="relative min-w-0 rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4">
-      <div class="text-xs opacity-60">总成本（折合人民币）</div>
+      <div class="text-xs text-muted">总成本（折合人民币）</div>
       <div class="mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl" :title="'CNY ' + fmtMoney(totalCost)">{{ fmtMoney(totalCost) }}</div>
       <details class="dropdown dropdown-end absolute right-2 top-2">
-        <summary class="cursor-pointer rounded-full px-1 text-sm opacity-40 transition hover:opacity-100" title="按币种查看小计">ⓘ</summary>
+        <summary
+          class="hit-area-left inline-flex cursor-pointer items-center rounded-full px-1 text-subtle transition hover:text-base-content"
+          title="按币种查看小计"
+          aria-label="按币种查看小计"
+        ><AppIcon name="info" :size="14" /></summary>
         <div class="dropdown-content z-10 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-base-300 bg-base-100 p-3 text-xs shadow-lg">
           <div class="mb-1.5 font-semibold">{{ costTip.title }}</div>
           <div v-for="line in costTip.lines" :key="line.c" class="flex items-baseline justify-between gap-2 py-0.5">
@@ -78,10 +83,14 @@ const realizedTip = computed(() => buildTip('累计已实现收益', props.reali
     </div>
 
     <div class="relative min-w-0 rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4">
-      <div class="text-xs opacity-60">总市值（折合人民币）</div>
+      <div class="text-xs text-muted">总市值（折合人民币）</div>
       <div class="mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl" :title="'CNY ' + fmtMoney(totalMarket)">{{ fmtMoney(totalMarket) }}</div>
       <details class="dropdown dropdown-end absolute right-2 top-2">
-        <summary class="cursor-pointer rounded-full px-1 text-sm opacity-40 transition hover:opacity-100" title="按币种查看小计">ⓘ</summary>
+        <summary
+          class="hit-area-left inline-flex cursor-pointer items-center rounded-full px-1 text-subtle transition hover:text-base-content"
+          title="按币种查看小计"
+          aria-label="按币种查看小计"
+        ><AppIcon name="info" :size="14" /></summary>
         <div class="dropdown-content z-10 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-base-300 bg-base-100 p-3 text-xs shadow-lg">
           <div class="mb-1.5 font-semibold">{{ marketTip.title }}</div>
           <div v-for="line in marketTip.lines" :key="line.c" class="flex items-baseline justify-between gap-2 py-0.5">
@@ -93,12 +102,16 @@ const realizedTip = computed(() => buildTip('累计已实现收益', props.reali
     </div>
 
     <div class="relative min-w-0 rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4">
-      <div class="text-xs opacity-60">今日收益（折合人民币）</div>
+      <div class="text-xs text-muted">今日收益（折合人民币）</div>
       <div class="mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl" :class="profitCls(totalTodayProfit)" :title="'CNY ' + fmtMoney(totalTodayProfit)">
         {{ fmtMoney(totalTodayProfit) }}
       </div>
       <details class="dropdown dropdown-end absolute right-2 top-2">
-        <summary class="cursor-pointer rounded-full px-1 text-sm opacity-40 transition hover:opacity-100" title="按币种查看小计">ⓘ</summary>
+        <summary
+          class="hit-area-left inline-flex cursor-pointer items-center rounded-full px-1 text-subtle transition hover:text-base-content"
+          title="按币种查看小计"
+          aria-label="按币种查看小计"
+        ><AppIcon name="info" :size="14" /></summary>
         <div class="dropdown-content z-10 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-base-300 bg-base-100 p-3 text-xs shadow-lg">
           <div class="mb-1.5 font-semibold">{{ todayTip.title }}</div>
           <div v-for="line in todayTip.lines" :key="line.c" class="flex items-baseline justify-between gap-2 py-0.5">
@@ -110,12 +123,16 @@ const realizedTip = computed(() => buildTip('累计已实现收益', props.reali
     </div>
 
     <div class="relative min-w-0 rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4">
-      <div class="text-xs opacity-60">持仓收益（折合人民币）</div>
+      <div class="text-xs text-muted">持仓收益（折合人民币）</div>
       <div class="mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl" :class="profitCls(totalHoldingProfit)" :title="'CNY ' + fmtMoney(totalHoldingProfit)">
         {{ fmtMoney(totalHoldingProfit) }}
       </div>
       <details class="dropdown dropdown-end absolute right-2 top-2">
-        <summary class="cursor-pointer rounded-full px-1 text-sm opacity-40 transition hover:opacity-100" title="按币种查看小计">ⓘ</summary>
+        <summary
+          class="hit-area-left inline-flex cursor-pointer items-center rounded-full px-1 text-subtle transition hover:text-base-content"
+          title="按币种查看小计"
+          aria-label="按币种查看小计"
+        ><AppIcon name="info" :size="14" /></summary>
         <div class="dropdown-content z-10 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-base-300 bg-base-100 p-3 text-xs shadow-lg">
           <div class="mb-1.5 font-semibold">{{ holdingTip.title }}</div>
           <div v-for="line in holdingTip.lines" :key="line.c" class="flex items-baseline justify-between gap-2 py-0.5">
@@ -126,12 +143,16 @@ const realizedTip = computed(() => buildTip('累计已实现收益', props.reali
       </details>
     </div>
     <div class="relative min-w-0 rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4">
-      <div class="text-xs opacity-60">累计已实现收益（含分红）</div>
+      <div class="text-xs text-muted">累计已实现收益（含分红）</div>
       <div class="mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl" :class="profitCls(totalRealizedProfit)" :title="'CNY ' + fmtMoney(totalRealizedProfit)">
         {{ fmtMoney(totalRealizedProfit) }}
       </div>
       <details class="dropdown dropdown-end absolute right-2 top-2">
-        <summary class="cursor-pointer rounded-full px-1 text-sm opacity-40 transition hover:opacity-100" title="按币种查看小计">ⓘ</summary>
+        <summary
+          class="hit-area-left inline-flex cursor-pointer items-center rounded-full px-1 text-subtle transition hover:text-base-content"
+          title="按币种查看小计"
+          aria-label="按币种查看小计"
+        ><AppIcon name="info" :size="14" /></summary>
         <div class="dropdown-content z-10 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-base-300 bg-base-100 p-3 text-xs shadow-lg">
           <div class="mb-1.5 font-semibold">{{ realizedTip.title }}</div>
           <div v-for="line in realizedTip.lines" :key="line.c" class="flex items-baseline justify-between gap-2 py-0.5">

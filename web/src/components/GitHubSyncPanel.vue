@@ -10,6 +10,7 @@
 import { ref, computed, watch } from 'vue';
 import { githubSync, resetLocalCache } from '../services/dataSource.js';
 import { useHoldings } from '../composables/useHoldings.js';
+import AppIcon from './AppIcon.vue';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -186,7 +187,9 @@ function forget() {
 <template>
   <section v-if="show" class="mb-4 rounded-xl border border-base-300 p-3">
     <div class="mb-2 flex items-center justify-between gap-2">
-      <div class="text-sm font-medium">☁️ 同步到 GitHub 私有仓库</div>
+      <div class="flex items-center gap-1.5 text-sm font-medium">
+        <AppIcon name="cloud" :size="15" /> 同步到 GitHub 私有仓库
+      </div>
       <span
         v-if="ready"
         class="rounded-full px-2 py-0.5 text-[11px]"
@@ -263,7 +266,7 @@ function forget() {
         <input v-model="cfg.autoPush" @change="onEdit" type="checkbox" class="checkbox checkbox-primary checkbox-xs mt-0.5" />
         <span>
           数据有改动时自动上传（停止操作 <b>3 分钟</b>后合并推送一次；关闭页面前会尽量补推）
-          <span class="mt-0.5 block text-[11px] opacity-50">云同步模式每分钟检查一次云端，发现其他设备的更新会在页面顶部提示</span>
+          <span class="mt-0.5 block text-[11px] text-subtle">云同步模式每分钟检查一次云端，发现其他设备的更新会在页面顶部提示</span>
         </span>
       </label>
     </div>

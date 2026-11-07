@@ -7,9 +7,11 @@ import { useHoldings } from './composables/useHoldings.js';
 import { currentMode, MODE_BADGE, MODE_LABEL, githubSync, resetLocalCache } from './services/dataSource.js';
 
 import AppHeader from './components/AppHeader.vue';
+import AppIcon from './components/AppIcon.vue';
 import OverviewCards from './components/OverviewCards.vue';
 import AllocationChart from './components/AllocationChart.vue';
 import HoldingList from './components/HoldingList.vue';
+import PlanPanel from './components/PlanPanel.vue';
 import StatsPanel from './components/StatsPanel.vue';
 import AddHoldingModal from './components/AddHoldingModal.vue';
 import TransactionModal from './components/TransactionModal.vue';
@@ -36,9 +38,14 @@ const modeBadge = MODE_BADGE[dataMode] || MODE_BADGE.local;
 const modeFullLabel = MODE_LABEL[dataMode] || MODE_LABEL.local;
 
 // ---------- 页签 ----------
-// 支持 ?tab=stats 直达复盘统计（manifest 快捷方式 / 收藏链接可用）
+// 支持 ?tab=stats / ?tab=calc 直达（manifest 快捷方式 / 收藏链接可用）
+const TABS = [
+  { key: 'holdings', label: '持仓总览' },
+  { key: 'calc', label: '加仓测算' },
+  { key: 'stats', label: '复盘统计' },
+];
 const initialTab = new URLSearchParams(window.location.search).get('tab');
-const tab = ref(initialTab === 'stats' ? 'stats' : 'holdings');
+const tab = ref(TABS.some((t) => t.key === initialTab) ? initialTab : 'holdings');
 function setTab(v) {
   tab.value = v;
   const url = new URL(window.location.href);
@@ -225,6 +232,7 @@ onUnmounted(() => {
       :countdown="countdown"
       :is-dark="isDark"
       :can-install="canInstall"
+      :mode="dataMode"
       :mode-label="modeBadge"
       :mode-title="modeFullLabel"
       :ring-c="RING_C"
@@ -242,7 +250,7 @@ onUnmounted(() => {
       <div v-if="showInstallTip" class="mb-4 rounded-xl border border-accent/50 bg-accent/10 p-3 text-xs">
         <div class="mb-1 flex items-center justify-between gap-2">
           <span class="font-medium">把「股票秘书」装到主屏幕，像 App 一样打开</span>
-          <button @click="closeInstallTip" class="rounded px-1.5 text-base leading-none opacity-60 hover:opacity-100" title="不再提示">×</button>
+          <button @click="closeInstallTip" class="hit-area rounded px-1.5 text-base leading-none text-base-content/70 hover:text-base-content" title="不再提示" aria-label="不再提示">×</button>
         </div>
         <ol class="ml-4 list-decimal space-y-0.5 opacity-80">
           <li>用 Safari 打开本页，点底部「分享」按钮 <span class="font-medium">⬆︎</span></li>
@@ -253,7 +261,9 @@ onUnmounted(() => {
 
       <!-- 云端更新提醒（仅在云同步模式下轮询到其他设备的提交时出现） -->
       <div v-if="remoteUpdate" class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border border-info/50 bg-info/10 p-3 text-xs">
-        <span class="font-medium">☁️ 云端有来自其他设备的更新</span>
+        <span class="inline-flex items-center gap-1.5 font-medium">
+          <AppIcon name="cloud" :size="14" /> 云端有来自其他设备的更新
+        </span>
         <span v-if="remoteUpdate.savedAt" class="opacity-60">
           （{{ remoteUpdate.savedAt.slice(0, 16).replace('T', ' ') }}）
         </span>
@@ -270,16 +280,12 @@ onUnmounted(() => {
       <!-- 页签 -->
       <div class="mb-4 flex items-center gap-1.5">
         <button
-          @click="setTab('holdings')"
-          class="rounded-full px-3.5 py-1.5 text-sm font-medium transition"
-          :class="tab === 'holdings' ? 'bg-sky-600 text-white shadow-sm' : 'border border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200'"
-        >持仓总览</button>
-        <button
-          @click="setTab('stats')"
-          class="rounded-full px-3.5 py-1.5 text-sm font-medium transition"
-          :class="tab === 'stats' ? 'bg-sky-600 text-white shadow-sm' : 'border border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200'"
-        >复盘统计</button>
-        <span v-if="fxNote" class="ml-auto hidden text-xs opacity-50 sm:inline">{{ fxNote }}</span>
+          v-for="t in TABS" :key="t.key"
+          @click="setTab(t.key)"
+          class="chip px-3.5 py-1.5 text-sm font-medium"
+          :class="tab === t.key ? 'bg-primary text-white shadow-sm' : 'border border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200'"
+        >{{ t.label }}</button>
+        <span v-if="fxNote" class="ml-auto hidden text-xs text-muted sm:inline">{{ fxNote }}</span>
       </div>
 
       <template v-if="tab === 'holdings'">
@@ -307,16 +313,16 @@ onUnmounted(() => {
             <button
               v-for="opt in g.options" :key="opt"
               @click="toggleFilter(g.key, opt)"
-              class="rounded-full px-2.5 py-1 text-xs font-medium transition"
+              class="chip px-2.5 py-1 text-xs font-medium"
               :class="isFilterActive(g.key, opt)
-                ? 'bg-sky-600 text-white shadow-sm'
+                ? 'bg-primary text-white shadow-sm'
                 : 'border border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200'"
             >{{ g.text ? g.text(opt) : opt }}</button>
           </template>
           <button
             v-if="hasActiveFilters"
             @click="clearFilters"
-            class="rounded-full px-2.5 py-1 text-xs font-medium text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+            class="chip px-2.5 py-1 text-xs font-medium text-error hover:bg-error/10"
           >清除过滤</button>
         </div>
 
@@ -330,11 +336,13 @@ onUnmounted(() => {
           @delete-txn="handleDeleteTxn"
         />
 
-        <p class="mt-4 text-xs opacity-50">
+        <p class="mt-4 text-xs text-muted">
           每 {{ REFRESH_MS / 1000 }} 秒自动刷新（顶部倒计时）持仓与实时行情，点「刷新」可立即更新。
           收益为正显示红色、为负显示绿色（A股习惯）。
         </p>
       </template>
+
+      <PlanPanel v-else-if="tab === 'calc'" />
 
       <StatsPanel v-else />
     </main>

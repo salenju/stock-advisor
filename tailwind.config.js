@@ -18,16 +18,18 @@ export default {
         stocklight: {
           primary: "#5548ff",
           secondary: "#3369ff", // 未指定，取同色板 info 蓝作对比
-          accent: "#21a470", // 未指定，取同色板 success 绿作点缀
+          accent: "#21a470", // 未指定，取同色板 success 绿作点缀（浅绿底 → 按钮用黑字）
           neutral: "#171717",
           "base-100": "#ffffff", // white
           "base-200": "#f6f6f6",
-          "base-300": "#e8e8e8",
+          "base-300": "#e2e2e2",
           "base-content": "#171717", // black
           info: "#3369ff",
-          success: "#21a470",
-          warning: "#f98c1f",
-          error: "#ea423b", // danger === error
+          // 浅色主题下用作「文字」时也要 ≥4.5:1：
+          // 原 #21a470 = 3.18、#ea423b = 3.93、#f98c1f = 2.39，均不达标
+          success: "#12805a", // 4.93:1（白字底 4.93:1）
+          warning: "#b45309", // 5.02:1
+          error: "#d92b2b", // 4.85:1
         },
       },
       {

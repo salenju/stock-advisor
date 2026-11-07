@@ -3,10 +3,12 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import * as echarts from 'echarts/core';
 import { PieChart } from 'echarts/charts';
-import { TooltipComponent, LegendComponent } from 'echarts/components';
+import { TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
-echarts.use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer]);
+// 图例不用 echarts 自带的：用小号 canvas 渲染的图例读屏不可见，
+// 这里改用下方 HTML 列表（可选中、可读、能跟饼图共用同一套颜色）。
+echarts.use([PieChart, TooltipComponent, CanvasRenderer]);
 
 const props = defineProps({
   holdings: { type: Array, default: () => [] },
@@ -24,6 +26,11 @@ const mode = ref('region');
 const REGION_LABEL = { hk: '港股', us: '美股', sh: 'A股-沪', sz: 'A股-深' };
 const REGION_ALIAS = { 港股: 'hk', 美股: 'us', 沪: 'sh', 深: 'sz', A股: 'sh' };
 const PALETTE = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#64748b'];
+
+/** 饼图与列表共用同一套颜色 */
+function colorOf(i) {
+  return PALETTE[i % PALETTE.length];
+}
 
 function toCNY(v, currency) {
   const n = Number(v);
@@ -63,6 +70,13 @@ const slices = computed(() => {
 const totalCNY = computed(() => slices.value.reduce((s, x) => s + x.value, 0));
 const hasData = computed(() => slices.value.length > 0);
 
+// canvas 图表对读屏不可见：给一段等价的文字摘要
+const chartSummary = computed(() => {
+  if (!slices.value.length) return '组合分布：暂无在仓市值可展示';
+  const parts = slices.value.map((s) => `${s.name} ${s.pct.toFixed(1)}%（¥${fmtMoney(s.value)}）`);
+  return `组合分布饼图，按市值折合人民币共 ¥${fmtMoney(totalCNY.value)}：${parts.join('，')}`;
+});
+
 const chartEl = ref(null);
 let chart = null;
 
@@ -81,25 +95,16 @@ function render() {
         trigger: 'item',
         formatter: (p) => `${p.name}<br/>¥${fmtMoney(p.value)}（${p.percent}%）`,
       },
-      legend: {
-        type: 'scroll',
-        orient: 'vertical',
-        right: 0,
-        top: 'middle',
-        textStyle: { color: textColor, fontSize: 11 },
-        itemWidth: 10,
-        itemHeight: 10,
-      },
       series: [
         {
           type: 'pie',
-          radius: ['42%', '68%'],
-          center: ['34%', '50%'],
+          radius: ['46%', '70%'],
+          center: ['50%', '50%'],
           avoidLabelOverlap: true,
           itemStyle: { borderColor: dark ? '#1f2937' : '#fff', borderWidth: 2 },
           label: { show: false },
-          emphasis: { label: { show: true, fontSize: 12, color: textColor, formatter: '{b}\n{d}%' } },
-          data: slices.value.map((s) => ({ name: s.name, value: s.value })),
+          emphasis: { scale: false, label: { show: true, fontSize: 12, color: textColor, formatter: '{b}\n{d}%' } },
+          data: slices.value.map((s, i) => ({ name: s.name, value: s.value, itemStyle: { color: colorOf(i) } })),
         },
       ],
     },
@@ -131,24 +136,41 @@ onBeforeUnmount(() => {
     <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
       <div>
         <div class="text-sm font-semibold">组合分布</div>
-        <div class="text-xs opacity-50">按市值（折合人民币 ¥{{ fmtMoney(totalCNY) }}）</div>
+        <div class="text-xs text-muted">按市值（折合人民币 ¥{{ fmtMoney(totalCNY) }}）</div>
       </div>
       <div class="flex flex-wrap items-center gap-1.5">
         <button
           v-for="m in MODES" :key="m.value"
           @click="mode = m.value"
-          class="rounded-full px-3 py-1 text-xs font-medium transition"
+          class="chip px-3 py-1 text-xs font-medium"
           :class="mode === m.value
-            ? 'bg-sky-600 text-white shadow-sm'
+            ? 'bg-primary text-white shadow-sm'
             : 'border border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200'"
         >{{ m.label }}</button>
       </div>
     </div>
-    <div class="relative">
-      <div ref="chartEl" class="h-64 w-full" :class="{ 'opacity-0': !hasData }"></div>
-      <div v-if="!hasData" class="absolute inset-0 flex items-center justify-center text-xs opacity-50">
-        暂无在仓市值可展示
+    <!-- 桌面：饼图 + 右侧明细两栏；手机：上下排列 -->
+    <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-center">
+      <div class="relative">
+        <div
+          ref="chartEl"
+          class="h-48 w-full sm:h-56 lg:h-60"
+          :class="{ 'opacity-0': !hasData }"
+          role="img"
+          :aria-label="chartSummary"
+        ></div>
+        <div v-if="!hasData" class="absolute inset-0 flex items-center justify-center text-xs text-muted">
+          暂无在仓市值可展示
+        </div>
       </div>
+
+      <ul v-if="hasData" class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs lg:max-h-56 lg:grid-cols-1 lg:overflow-y-auto lg:pr-1">
+        <li v-for="(s, i) in slices" :key="s.name" class="flex min-w-0 items-center gap-1.5">
+          <span class="h-2 w-2 shrink-0 rounded-full" :style="{ backgroundColor: colorOf(i) }"></span>
+          <span class="truncate text-muted">{{ s.name }}</span>
+          <span class="ml-auto shrink-0 tabular-nums">{{ s.pct.toFixed(1) }}%</span>
+        </li>
+      </ul>
     </div>
   </div>
 </template>

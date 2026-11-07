@@ -21,6 +21,7 @@
   ],
   "shortcuts": [
     { "name": "持仓总览", "short_name": "持仓", "url": "./" },
+    { "name": "加仓测算", "short_name": "测算", "url": "./?tab=calc" },
     { "name": "复盘统计", "short_name": "复盘", "url": "./?tab=stats" }
   ]
 }

@@ -57,7 +57,7 @@ export function migrateHolding(h) {
       sells: (out.sells || []).map((s) => ({ ...s, fee: Number(s.fee) || 0 })),
       dividends: out.dividends || [],
       splits: out.splits || [],
-      costMethod: out.costMethod || 'LIFO',
+      costMethod: out.costMethod || 'FIFO',
       trailingStopPct: out.trailingStopPct ?? null,
       peakReturnRate: out.peakReturnRate ?? null,
     };

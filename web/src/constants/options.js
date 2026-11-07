@@ -25,10 +25,10 @@ export const TYPE_OPTIONS = [
   'ETF',
 ];
 
-// 成本核算方法（与 web/src/core/derive.js 的 COST_METHODS 一致）
+// 成本核算方法（与 web/src/core/derive.js 的 COST_METHODS 一致；FIFO 为默认）
 export const COST_METHODS = [
+  { value: 'FIFO', label: '先进先出（FIFO，先买先卖）', short: 'FIFO' },
   { value: 'LIFO', label: '后进先出（LIFO）', short: 'LIFO' },
-  { value: 'FIFO', label: '先进先出（FIFO）', short: 'FIFO' },
   { value: 'WAC', label: '移动加权平均', short: '加权' },
 ];
 

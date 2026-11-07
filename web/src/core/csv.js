@@ -46,6 +46,31 @@ export function buildStatsCsv(holdings, rates) {
   return toCsv(header, rows);
 }
 
+// ---------- 导入模板 ----------
+// 表头与 import-csv-core.js 的列识别规则一一对应：
+//   必需：代码 / 操作 / 日期
+//   买入·卖出：数量 + 价格；分红：金额；送转：比例
+// 序号 / 地区 / 类型 / 手续费 可留空，地区用 hk|us|sh|sz（与下拉框取值一致）
+export const IMPORT_TEMPLATE_HEADER = [
+  '序号', '股票/基金名称', '代码', '地区', '类型', '操作', '日期',
+  '数量', '价格', '手续费', '金额', '比例',
+];
+
+const IMPORT_TEMPLATE_SAMPLE = '示例·请替换或删除本行';
+
+const IMPORT_TEMPLATE_ROWS = [
+  [1, IMPORT_TEMPLATE_SAMPLE, '000000', 'hk', '股票', '买入', '2026-01-05', 200, 10, 5, '', ''],
+  [2, IMPORT_TEMPLATE_SAMPLE, '000000', 'hk', '股票', '卖出', '2026-02-05', 100, 12, 5, '', ''],
+  [3, IMPORT_TEMPLATE_SAMPLE, '000000', 'hk', '股票', '分红', '2026-02-20', '', '', 0, 30, ''],
+  [4, IMPORT_TEMPLATE_SAMPLE, '000000', 'hk', '股票', '送转', '2026-03-01', '', '', '', '', 2],
+  [5, IMPORT_TEMPLATE_SAMPLE, '999999', 'sh', '股票', '买入', '2026-01-06', 100, 8, 5, '', ''],
+];
+
+/** 「导入 CSV」模板（含 买入/卖出/分红/送转 四类示例行，导入前替换成真实记录） */
+export function buildImportTemplateCsv() {
+  return toCsv(IMPORT_TEMPLATE_HEADER, IMPORT_TEMPLATE_ROWS);
+}
+
 /** 每日快照 */
 export function buildSnapshotsCsv(snapshots) {
   return toCsv(

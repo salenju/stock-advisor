@@ -9,6 +9,7 @@
 import { migrateHoldings, dataSignature, SCHEMA_VERSION } from '../core/schema.js';
 import { upsertSnapshotInList } from '../core/snapshot.js';
 import { DEFAULT_RATES } from '../core/rates.js';
+import { convertAllToFifo } from '../core/fifo-migration.js';
 
 const DB_NAME = 'stock-advisor';
 const DB_VERSION = 1;
@@ -22,6 +23,17 @@ const KEY_HOLDINGS = 'holdings';
 const KEY_SNAPSHOTS = 'snapshots';
 const KEY_SETTINGS = 'settings';
 const KEY_META = 'meta';
+
+// 一次性迁移标记：老数据默认 LIFO，统一改成券商口径 FIFO（并按 FIFO 重算历史卖出成本）
+const KEY_FIFO_MIGRATED = 'fifoMigrated';
+let fifoMigrationPending = false;
+
+/** 数据面板/云同步用：读取并清除「刚做过 FIFO 迁移」标记（只返回一次 true） */
+export function takeFifoMigrationPending() {
+  const v = fifoMigrationPending;
+  fifoMigrationPending = false;
+  return v;
+}
 
 export const DEFAULT_SETTINGS = {
   fx: { rates: { ...DEFAULT_RATES }, updatedAt: null },
@@ -173,11 +185,30 @@ export function storeDriver() {
 
 // ---------- 持仓 ----------
 
-/** 读取持仓（含旧版本迁移，返回的数组可直接使用） */
+/** 读取持仓（含旧版本迁移 + 一次性 FIFO 迁移，返回的数组可直接使用） */
 export async function loadHoldings() {
   await initStore();
   const raw = await readKey(KEY_HOLDINGS, []);
   const { list, changed } = migrateHoldings(raw);
+
+  // ---- 一次性：历史数据统一成 FIFO（券商口径）并按 FIFO 重算历史卖出成本 ----
+  // 只跑一次，之后用户手动切回 LIFO 也不会被再次改回来。
+  const meta = await loadMeta();
+  if (!meta[KEY_FIFO_MIGRATED]) {
+    const r = convertAllToFifo(list);
+    let result = r.list;
+    if (r.changed) {
+      // 走 saveHoldings：写盘前会为迁移前的数据留一份版本快照（数据面板可回滚）
+      result = await saveHoldings(r.list, '成本法统一为 FIFO（券商口径）');
+      fifoMigrationPending = true;
+    } else if (changed) {
+      await writeKey(KEY_HOLDINGS, list);
+    }
+    // 成功落盘后再打标记；失败则下次启动重试
+    await saveMeta({ [KEY_FIFO_MIGRATED]: true });
+    return result;
+  }
+
   if (changed) await writeKey(KEY_HOLDINGS, list);
   return list;
 }

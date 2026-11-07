@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import RefreshRing from './RefreshRing.vue';
+import AppIcon from './AppIcon.vue';
 
 defineProps({
   lastUpdated: { type: String, default: '' },
@@ -9,6 +10,7 @@ defineProps({
   countdown: { type: Number, default: 0 },
   isDark: { type: Boolean, default: true },
   canInstall: { type: Boolean, default: false },
+  mode: { type: String, default: 'local' },
   modeLabel: { type: String, default: '' },
   modeTitle: { type: String, default: '' },
   ringC: { type: Number, required: true },
@@ -52,15 +54,18 @@ onUnmounted(() => {
       <div class="flex items-center justify-between gap-2">
         <div class="min-w-0 flex-1">
           <h1 class="flex items-center gap-1.5 text-base font-semibold tracking-tight sm:text-xl">
-            <span>📈</span>
+            <AppIcon name="chart" :size="18" class="text-primary" />
             <span class="truncate">股票秘书</span>
             <span
               v-if="modeLabel"
-              class="shrink-0 rounded-full bg-base-200 px-2 py-0.5 text-[10px] font-medium sm:text-[11px]"
+              class="inline-flex shrink-0 items-center gap-1 rounded-full bg-base-200 px-2 py-0.5 text-[10px] font-medium sm:text-[11px]"
               :title="modeTitle || modeLabel"
-            >{{ modeLabel }}</span>
+            >
+              <AppIcon :name="mode === 'github' ? 'cloud' : 'lock'" :size="11" />
+              {{ modeLabel }}
+            </span>
           </h1>
-          <p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] opacity-60 sm:text-xs">
+          <p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted sm:text-xs">
             <span class="hidden sm:inline">持仓 · 实时行情 · 复盘统计</span>
             <span v-if="lastUpdated" class="hidden sm:inline">· 更新于 {{ lastUpdated }}</span>
             <span v-if="loading" class="text-info">刷新中…</span>
@@ -75,16 +80,18 @@ onUnmounted(() => {
         <div class="flex shrink-0 items-center gap-1.5">
           <button
             @click="emit('refresh')"
-            class="btn btn-info btn-sm px-2.5 sm:px-4"
+            class="btn btn-sm px-2.5 sm:px-4"
             :disabled="loading"
             title="立即刷新行情"
           >刷新</button>
           <button
             @click="emit('open-data')"
-            class="btn btn-sm px-2.5 sm:px-4"
-            style="background-color: #7c3aed; border-color: #7c3aed; color: #fff"
+            class="btn btn-sm gap-1.5 px-2.5 sm:px-4"
             title="数据存放位置、云同步、导出备份、导入与回滚"
-          >🗄 数据</button>
+          >
+            <AppIcon name="database" :size="16" />
+            <span>数据</span>
+          </button>
           <button @click="emit('add')" class="btn btn-primary btn-sm px-2.5 sm:px-4">+ 添加</button>
 
           <!-- 次级操作：手机收进菜单；桌面平铺 -->
@@ -92,20 +99,28 @@ onUnmounted(() => {
             <button
               v-if="canInstall"
               @click="emit('install')"
-              class="btn btn-accent btn-sm"
+              class="btn btn-accent btn-sm gap-1.5"
               title="把「股票秘书」安装到桌面 / 主屏幕，像 App 一样打开"
-            >📲 安装 App</button>
+            >
+              <AppIcon name="install" :size="16" />
+              <span>安装 App</span>
+            </button>
             <button
               @click="emit('toggle-theme')"
-              :title="isDark ? '切换到浅色' : '切换到深色'"
-              class="btn btn-ghost btn-circle btn-sm"
-            >{{ isDark ? '☀️' : '🌙' }}</button>
+              :title="isDark ? '切换到浅色模式' : '切换到深色模式'"
+              :aria-label="isDark ? '切换到浅色模式' : '切换到深色模式'"
+              class="btn btn-ghost btn-circle btn-sm hit-area"
+            >
+              <AppIcon :name="isDark ? 'sun' : 'moon'" :size="18" />
+            </button>
             <button
               @click="emit('import-csv')"
-              class="btn btn-sm text-white"
-              style="background-color: #f40; border-color: #f40;"
+              class="btn btn-sm gap-1.5"
               title="导入 CSV 买卖记录"
-            >导入 CSV</button>
+            >
+              <AppIcon name="upload" :size="16" />
+              <span>导入 CSV</span>
+            </button>
           </div>
 
           <!-- 手机端「更多」 -->
@@ -122,15 +137,20 @@ onUnmounted(() => {
               class="absolute right-0 top-full z-30 mt-1 w-40 overflow-hidden rounded-lg border border-base-300 bg-base-100 py-1 text-sm shadow-xl"
             >
               <li v-if="canInstall">
-                <button @click="fire('install')" class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200">📲 安装 App</button>
-              </li>
-              <li>
-                <button @click="fire('toggle-theme')" class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200">
-                  {{ isDark ? '☀️ 浅色模式' : '🌙 深色模式' }}
+                <button @click="fire('install')" class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200">
+                  <AppIcon name="install" :size="16" /> 安装 App
                 </button>
               </li>
               <li>
-                <button @click="fire('import-csv')" class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200">📥 导入 CSV</button>
+                <button @click="fire('toggle-theme')" class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200">
+                  <AppIcon :name="isDark ? 'sun' : 'moon'" :size="16" />
+                  {{ isDark ? '浅色模式' : '深色模式' }}
+                </button>
+              </li>
+              <li>
+                <button @click="fire('import-csv')" class="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-base-200">
+                  <AppIcon name="upload" :size="16" /> 导入 CSV
+                </button>
               </li>
             </ul>
           </div>

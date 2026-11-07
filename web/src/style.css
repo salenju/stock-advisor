@@ -21,13 +21,138 @@ body,
   background: transparent;
 }
 
-/* 按钮文字统一白色（与品牌色按钮保持一致） */
-.btn {
-  color: #fff;
+/* ==========================================================================
+   设计 token
+   ========================================================================== */
+
+/* 次要文字：不再用 opacity 弱化。
+   opacity 会连底色一起削，浅色主题下 opacity-40/50 只有 2.5~3.3:1，
+   达不到 WCAG AA 的 4.5:1。这里给两档「主题感知」的文字色，两套主题都 ≥4.8:1。 */
+[data-theme='stocklight'] {
+  --muted: #5b6068;   /* 说明文字：6.3:1 */
+  --subtle: #6b7280;  /* 更弱一档：4.8:1 */
+}
+[data-theme='stockdark'] {
+  --muted: #b3b3b3;   /* 8.6:1 */
+  --subtle: #a3a3a3;  /* 7.1:1 */
+}
+.text-muted {
+  color: var(--muted);
+}
+.text-subtle {
+  color: var(--subtle);
 }
 
-/* 中性/ghost 按钮在浅色背景下白字不可见，补一层淡淡的暗色底以承载白字 */
-.btn-ghost,
-.btn:not(.btn-primary):not(.btn-success):not(.btn-error):not(.btn-info):not(.btn-warning) {
-  background-color: rgb(23 23 23 / 0.08);
+/* 按钮前景色：
+   只有「彩色实心按钮」需要覆盖前景色，其余（中性/ghost/outline/link）交给
+   daisyUI 的主题前景色，否则浅色主题下会出现白字落白底。
+   各底色与文字的对比度：
+     primary #5548ff → 白 5.59    info #3369ff → 白 4.56
+     error   #d92b2b → 白 4.85    accent #21a470 → 黑 6.60
+     浅色 success #12805a → 白 4.93；深色 success #21a470 → 白只有 3.18，改用黑字
+     浅色 warning #b45309 → 白 5.02；深色 warning #f98c1f → 白只有 2.39，改用黑字 */
+.btn-primary,
+.btn-secondary,
+.btn-info,
+.btn-error,
+.btn-success,
+.btn-warning,
+.btn-neutral {
+  color: #fff;
+}
+.btn-accent,
+[data-theme='stockdark'] .btn-success,
+[data-theme='stockdark'] .btn-warning {
+  color: #000;
+}
+
+/* ==========================================================================
+   触摸目标
+   ========================================================================== */
+
+/* 视觉尺寸不变，热区撑到 44×44（图标类小按钮用） */
+.hit-area {
+  position: relative;
+}
+.hit-area::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+/* 卡片右上角的图标：热区只向左/下扩，避免撑出卡片边界 */
+.hit-area-left {
+  position: relative;
+}
+.hit-area-left::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  transform: translateY(-50%);
+}
+
+/* 筛选 / 分段控件统一形态 */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.75rem;
+  border-radius: 9999px;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.chip:focus-visible {
+  outline: 2px solid oklch(var(--p) / 1);
+  outline-offset: 2px;
+}
+
+/* 触屏设备：输入框字号抬到 16px（iOS Safari 小于 16px 聚焦会放大整页），
+   按钮与下拉抬到可点的高度 */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea,
+  .input,
+  .select,
+  .textarea {
+    font-size: 16px;
+  }
+  .btn-xs {
+    min-height: 2.25rem;
+  }
+  .btn-sm {
+    min-height: 2.5rem;
+  }
+  .select-xs,
+  .select-sm,
+  .input-xs,
+  .input-sm {
+    min-height: 2.5rem;
+  }
+  .chip {
+    min-height: 2.25rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+/* ==========================================================================
+   弹窗
+   ========================================================================== */
+
+/* daisyUI 的 .modal 用了 display:grid，会盖掉浏览器对 <dialog> 的 display:none，
+   导致「关闭状态」的弹窗仍留在无障碍树与 Tab 序列里。这里补回来。 */
+dialog.modal:not([open]) {
+  display: none;
+}
+
+/* 模态打开时锁住背景滚动（部分浏览器对 showModal 不做滚动阻断） */
+html:has(dialog.modal[open]) {
+  overflow: hidden;
 }

@@ -65,7 +65,7 @@ onMounted(() => {
         <div class="mt-1 truncate text-lg font-semibold tabular-nums" :class="c.cls">{{ c.value }}</div>
       </div>
     </div>
-    <div v-else class="rounded-xl border border-dashed border-base-300 p-10 text-center text-xs opacity-50">
+    <div v-else class="rounded-xl border border-dashed border-base-300 p-10 text-center text-xs text-muted">
       {{ statsLoading ? '统计加载中…' : '暂无卖出记录，还没有可复盘的战绩' }}
     </div>
 
@@ -76,7 +76,7 @@ onMounted(() => {
         <div v-for="y in stats.byYear" :key="y.year" class="text-xs">
           <span class="opacity-60">{{ y.year }}：</span>
           <b class="tabular-nums" :class="profitCls(y.realizedProfit)">¥{{ fmtMoney(y.realizedProfit) }}</b>
-          <span class="opacity-50">（{{ y.tradeCount }} 笔）</span>
+          <span class="text-subtle">（{{ y.tradeCount }} 笔）</span>
         </div>
       </div>
     </div>
@@ -89,10 +89,10 @@ onMounted(() => {
           <span class="truncate">{{ i.name }}</span>
           <span class="shrink-0 tabular-nums">
             <b :class="profitCls(i.realizedProfitCNY)">¥{{ fmtMoney(i.realizedProfitCNY) }}</b>
-            <span class="opacity-50"> / {{ fmtPct(i.realizedReturnRate) }}</span>
+            <span class="text-subtle"> / {{ fmtPct(i.realizedReturnRate) }}</span>
           </span>
         </div>
-        <div v-if="!stats.best?.length" class="text-xs opacity-40">暂无</div>
+        <div v-if="!stats.best?.length" class="text-xs text-subtle">暂无</div>
       </div>
       <div class="rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4">
         <div class="mb-2 text-sm font-semibold">表现最差 Top3</div>
@@ -100,10 +100,10 @@ onMounted(() => {
           <span class="truncate">{{ i.name }}</span>
           <span class="shrink-0 tabular-nums">
             <b :class="profitCls(i.realizedProfitCNY)">¥{{ fmtMoney(i.realizedProfitCNY) }}</b>
-            <span class="opacity-50"> / {{ fmtPct(i.realizedReturnRate) }}</span>
+            <span class="text-subtle"> / {{ fmtPct(i.realizedReturnRate) }}</span>
           </span>
         </div>
-        <div v-if="!stats.worst?.length" class="text-xs opacity-40">暂无</div>
+        <div v-if="!stats.worst?.length" class="text-xs text-subtle">暂无</div>
       </div>
     </div>
 
@@ -114,7 +114,7 @@ onMounted(() => {
         <div v-for="b in stats.byHoldDays" :key="b.bucket" class="text-xs">
           <span class="opacity-60">{{ b.bucket }}：</span>
           <b class="tabular-nums" :class="profitCls(b.realizedProfitCNY)">¥{{ fmtMoney(b.realizedProfitCNY) }}</b>
-          <span class="opacity-50">（{{ b.count }} 笔）</span>
+          <span class="text-subtle">（{{ b.count }} 笔）</span>
         </div>
       </div>
     </div>
@@ -143,7 +143,7 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-for="i in items" :key="i.id">
-              <td class="max-w-[10rem] truncate">{{ i.name }}<span class="ml-1 opacity-40">{{ i.code }}</span></td>
+              <td class="max-w-[10rem] truncate">{{ i.name }}<span class="ml-1 text-subtle">{{ i.code }}</span></td>
               <td class="text-center">
                 <span class="badge badge-s badge-outline">{{ i.fullyClosed ? '已清仓' : '部分卖出' }}</span>
               </td>
@@ -167,7 +167,7 @@ onMounted(() => {
       <div class="border-b border-base-300 px-3 py-2 text-sm font-semibold sm:px-4">
         每日快照（{{ snapshots.length }} 天）
       </div>
-      <div v-if="!snapshots.length" class="px-4 py-6 text-center text-xs opacity-50">
+      <div v-if="!snapshots.length" class="px-4 py-6 text-center text-xs text-muted">
         还没有快照记录。调度器会在每个交易日 16:10 后自动记录一份（可在 config.json 的 schedule.snapshotAt 调整）。
       </div>
       <div v-else class="max-h-80 overflow-auto">

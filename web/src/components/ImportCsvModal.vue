@@ -1,6 +1,9 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { useHoldings } from '../composables/useHoldings.js';
+import { buildImportTemplateCsv, downloadCsv } from '../core/csv.js';
+import BaseModal from './BaseModal.vue';
+import AppIcon from './AppIcon.vue';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -46,6 +49,11 @@ function handleFile(e) {
   e.target.value = '';
 }
 
+// 下载导入模板：表头与解析规则一一对应，含买入/卖出/分红/送转四类示例行
+function downloadTemplate() {
+  downloadCsv('stock-advisor-import-template.csv', buildImportTemplateCsv());
+}
+
 async function submit() {
   if (!csvText.value.trim()) {
     error.value = '请先选择 CSV 文件';
@@ -73,40 +81,46 @@ function close() {
 </script>
 
 <template>
-  <dialog class="modal" :class="{ 'modal-open': show }">
-    <div class="modal-box max-w-2xl">
-      <h2 class="mb-4 text-lg font-semibold">导入 CSV 买卖记录</h2>
-
+  <BaseModal
+    :show="show"
+    title="导入 CSV 买卖记录"
+    size="lg"
+    :closable="!importing"
+    @close="emit('close')"
+  >
       <!-- 未导入：文件选择 -->
       <template v-if="!result">
         <div class="space-y-4">
           <label
             class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-base-300 p-8 text-center transition hover:border-primary"
           >
-            <span class="mb-1 text-3xl">📄</span>
+            <AppIcon name="file" :size="32" class="mb-1 text-base-content/40" />
             <span class="text-sm font-medium">{{ fileName || '点击选择 CSV 文件' }}</span>
-            <span class="mt-1 text-xs opacity-50">支持 代码 / 操作(买入·卖出·分红·送转) / 日期 / 数量 / 价格 / 手续费 等列</span>
+            <span class="mt-1 text-xs text-muted">支持 代码 / 操作(买入·卖出·分红·送转) / 日期 / 数量 / 价格 / 手续费 等列</span>
             <input type="file" accept=".csv,text/csv" class="hidden" @change="handleFile" />
           </label>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-base-200 px-3 py-2 text-xs">
+            <span class="text-muted">模板含 买入 / 卖出 / 分红 / 送转 四类示例行，导入前请替换成真实记录或删除示例行</span>
+            <button type="button" class="btn btn-xs btn-ghost" @click="downloadTemplate">
+              <AppIcon name="download" :size="14" />
+              下载模板
+            </button>
+          </div>
 
           <label class="flex items-start gap-2 text-sm">
             <input v-model="createMissing" type="checkbox" class="checkbox checkbox-primary checkbox-sm mt-0.5" />
             <span>
               匹配不到现有持仓时自动新建持仓
-              <span class="block text-xs opacity-50">例如 CSV 里的小米（1810）在 holdings 中不存在，勾选后会自动创建</span>
+              <span class="block text-xs text-muted">例如 CSV 里的小米（1810）在 holdings 中不存在，勾选后会自动创建</span>
             </span>
           </label>
 
-          <p class="rounded-lg bg-base-200 px-3 py-2 text-xs opacity-70">
-            导入规则：按「代码」匹配现有持仓；<b>已存在相同明细（日期/数量/价格）的记录会忽略</b>，缺失的才插入。
+          <p class="rounded-lg bg-base-200 px-3 py-2 text-xs text-muted">
+            导入规则：<b>只追加、不覆盖</b>——按「代码」匹配现有持仓，已存在相同明细（日期/数量/价格）的记录会忽略，
+            缺失的才追加到该持仓明细后面；原有的买入/卖出/分红/送转记录和持仓字段都不会被删除或改写。
           </p>
           <p v-if="error" class="text-sm text-error">{{ error }}</p>
-        </div>
-        <div class="modal-action">
-          <button @click="close" class="btn btn-sm btn-info">取消</button>
-          <button @click="submit" class="btn btn-sm btn-primary" :disabled="importing">
-            {{ importing ? '导入中…' : '开始导入' }}
-          </button>
         </div>
       </template>
 
@@ -142,7 +156,7 @@ function close() {
                 [{{ { BUY: '买入', SELL: '卖出', DIVIDEND: '分红', SPLIT: '送转' }[m.oper] || m.oper }}] {{ m.name || m.code }}（{{ m.date }} 数量={{ m.qty }} 价格={{ m.price }}）
               </li>
             </ul>
-            <p v-if="!createMissing" class="mt-1 text-xs opacity-60">可重新勾选「自动新建持仓」后再导入。</p>
+            <p v-if="!createMissing" class="mt-1 text-xs text-muted">可重新勾选「自动新建持仓」后再导入。</p>
           </div>
 
           <div v-if="result.errors.length" class="rounded-lg bg-error/10 p-3 text-sm">
@@ -152,11 +166,15 @@ function close() {
             </ul>
           </div>
         </div>
-        <div class="modal-action">
-          <button @click="close" class="btn btn-sm btn-primary">完成</button>
-        </div>
       </template>
-    </div>
-    <form class="modal-backdrop" @click="close"></form>
-  </dialog>
+    <template #footer>
+      <template v-if="!result">
+        <button @click="close" class="btn btn-sm btn-ghost">取消</button>
+        <button @click="submit" class="btn btn-sm btn-primary" :disabled="importing">
+          {{ importing ? '导入中…' : '开始导入' }}
+        </button>
+      </template>
+      <button v-else @click="close" class="btn btn-sm btn-primary">完成</button>
+    </template>
+  </BaseModal>
 </template>

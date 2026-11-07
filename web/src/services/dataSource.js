@@ -42,10 +42,10 @@ export const MODE_LABEL = {
   github: 'GitHub 私有仓库（多设备同步）',
 };
 
-/** 头部徽标用的短标签 */
+/** 头部徽标用的短标签（图标由 AppHeader 按 mode 渲染，这里只放文字） */
 export const MODE_BADGE = {
-  local: '🔒 本地数据',
-  github: '☁️ 云同步',
+  local: '本地数据',
+  github: '云同步',
 };
 
 /** 解析当前数据模式（并把 ?mode= 的选择记住） */
@@ -101,6 +101,11 @@ async function loadLocal() {
   if (!cache) {
     cache = await local.loadHoldings();
     lastSavedSignature = dataSignature(cache);
+    // 刚做过一次性 FIFO 迁移：云端那份还是旧口径，推一次，
+    // 否则另一台设备拉取时会把已迁移的数据又覆盖回去。
+    if (local.takeFifoMigrationPending() && currentMode() === 'github') {
+      ghSync.scheduleAutoPush('成本法统一为 FIFO');
+    }
   }
   return cache;
 }
@@ -214,6 +219,16 @@ const localSource = {
     recomputeSells(h);
     await persistLocal('重算历史成本');
     return { data: withDerived(h) };
+  },
+
+  // 批量切换成本法：只改「批次归属」口径，不改写已记录的卖出成本/盈亏（账本事实）。
+  // 用途：老数据默认还是 LIFO，想统一成「先买先卖」时一把切过去。
+  async setCostMethodAll(method) {
+    const m = normalizeCostMethod(method);
+    const list = await loadLocal();
+    for (const h of list) h.costMethod = m;
+    await persistLocal(`批量改成本法（${m}）`);
+    return { data: list.map(withDerived) };
   },
 
   async addPurchase(id, body) {

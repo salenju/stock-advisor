@@ -6,6 +6,7 @@ import {
   computePositions,
   applyTransaction,
   normalizePurchase,
+  normalizeCostMethod,
   recomputeSells,
   unitCostOf,
   dateKey,
@@ -49,6 +50,13 @@ test('dateKey：归一化 ISO 时间戳 / 斜杠 / 点号日期', () => {
   assert.equal(dateKey('2026/8/5'), '2026-08-05');
   assert.equal(dateKey('2026.8.5'), '2026-08-05');
   assert.equal(dateKey(''), '');
+});
+
+test('成本法默认 FIFO（先买先卖），非法值也回落到 FIFO', () => {
+  assert.equal(normalizeCostMethod(undefined), 'FIFO');
+  assert.equal(normalizeCostMethod(''), 'FIFO');
+  assert.equal(normalizeCostMethod('xxx'), 'FIFO');
+  assert.equal(normalizeCostMethod('lifo'), 'LIFO'); // 大小写归一
 });
 
 test('缺失利润字段的卖出记录不会产生 NaN（回归：Number(x) ?? fallback 失效）', () => {
@@ -111,6 +119,55 @@ test('送转/拆股：数量按比例放大、均价下降、成本总额不变'
   assert.equal(d.unsoldQuantity, 200);
   near(d.cost, 1000);
   near(d.avgCost, 5);
+});
+
+test('逐笔买入收益：按现价算这一笔剩余仓位的浮动盈亏', () => {
+  const h = H({ purchases: [BUY(10, 100, '2026-01-01', 5)], currentPrice: 12 });
+  const d = aggregate(h);
+  const p = d.purchases[0];
+
+  near(p.remainQty, 100);
+  near(p.remainUnitCost, 10.05); // 含费单位成本
+  near(p.remainCost, 1005);
+  near(p.remainMarketValue, 1200);
+  near(p.remainProfit, 195); // (12 - 10.05) * 100
+  near(p.remainReturnRate, (195 / 1005) * 100);
+
+  // 交易列表里的买入行也要带上逐笔收益（表格直接用）
+  const txn = d.transactions.find((t) => t.id === p.id);
+  near(txn.remainProfit, 195);
+  near(txn.remainReturnRate, (195 / 1005) * 100);
+});
+
+test('逐笔买入收益：部分卖出后只算剩余数量（LIFO）', () => {
+  const h = H({
+    purchases: [BUY(10, 100, '2026-01-01', 0, 'p1'), BUY(12, 100, '2026-03-01', 0, 'p2')],
+    currentPrice: 15,
+  });
+  applyTransaction(h, { type: 'SELL', price: 13, quantity: 100, date: '2026-04-01' });
+
+  const d = aggregate(h);
+  const p1 = d.purchases.find((x) => x.id === 'p1');
+  const p2 = d.purchases.find((x) => x.id === 'p2');
+
+  near(p1.remainQty, 100);
+  near(p1.remainProfit, 500); // (15 - 10) * 100
+
+  near(p2.remainQty, 0); // LIFO 先把后买的这笔卖完
+  assert.equal(p2.remainProfit, 0);
+  assert.equal(p2.remainReturnRate, null, '没有剩余数量时不显示收益率');
+});
+
+test('逐笔买入收益：送转后剩余数量放大、单位成本等比缩小', () => {
+  const h = H({ purchases: [BUY(10, 100, '2026-01-01')], currentPrice: 6 });
+  applyTransaction(h, { type: 'SPLIT', ratio: 2, date: '2026-02-01' });
+
+  const p = aggregate(h).purchases[0];
+  near(p.remainQty, 200);
+  near(p.remainUnitCost, 5);
+  near(p.remainCost, 1000);
+  near(p.remainProfit, 200); // (6 - 5) * 200
+  near(p.remainReturnRate, 20);
 });
 
 test('成本法：LIFO / FIFO / WAC 卖出成本各不相同且符合定义', () => {
@@ -205,7 +262,7 @@ test('迁移：旧扁平结构 → purchases，并补齐新字段', () => {
   assert.equal(out.purchases[0].fee, 0, '旧数据补 fee=0');
   assert.deepEqual(out.dividends, []);
   assert.deepEqual(out.splits, []);
-  assert.equal(out.costMethod, 'LIFO');
+  assert.equal(out.costMethod, 'FIFO', '默认口径是先买先卖');
   assert.equal(out.trailingStopPct, null);
   assert.equal(out.status, '全部卖出', "'已卖出' 归一为 '全部卖出'");
 

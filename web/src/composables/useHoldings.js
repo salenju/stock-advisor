@@ -228,6 +228,12 @@ async function updateHolding(id, body) {
   await fetchHoldings();
 }
 
+// 批量切换成本法（老数据默认是 LIFO，想统一成「先买先卖」时用）
+async function setCostMethodAll(method) {
+  await dataSource().setCostMethodAll(method);
+  await fetchHoldings();
+}
+
 // 用当前成本法重算历史卖出成本（会改写历史，需二次确认）
 async function recomputeHolding(id, name) {
   const backupNote = '改动前会自动留一份版本快照，可在「数据」面板回滚。';
@@ -282,6 +288,7 @@ export function useHoldings() {
     deletePurchase,
     deleteTransaction,
     updateHolding,
+    setCostMethodAll,
     recomputeHolding,
   };
 }

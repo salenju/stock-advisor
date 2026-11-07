@@ -36,12 +36,14 @@ export function dateKey(v) {
 export const byDateDesc = (a, b) => dateKey(b?.buyTime).localeCompare(dateKey(a?.buyTime));
 export const byDateAsc = (a, b) => dateKey(a?.buyTime).localeCompare(dateKey(b?.buyTime));
 
-export const COST_METHODS = ['LIFO', 'FIFO', 'WAC'];
+// 默认「先买先卖」（FIFO）：A 股实务与个人记账都按这个口径，
+// 也符合「先买的先卖掉」的直觉；LIFO 仍可逐只持仓单独切换。
+export const COST_METHODS = ['FIFO', 'LIFO', 'WAC'];
 export const COST_METHOD_LABEL = { LIFO: '后进先出', FIFO: '先进先出', WAC: '移动加权平均' };
 
 export function normalizeCostMethod(m) {
   const s = String(m || '').toUpperCase();
-  return COST_METHODS.includes(s) ? s : 'LIFO';
+  return COST_METHODS.includes(s) ? s : 'FIFO';
 }
 
 // 持仓是否仍为"在仓"（未知/空状态按在仓处理，兼容旧数据）
@@ -339,6 +341,9 @@ export function aggregate(h, currentPrice) {
   const hasPrice = price != null && Number.isFinite(Number(price)) && Number(price) > 0;
   const pos = computePositions(h);
 
+  // 批次索引：算出每笔买入「还剩多少」（部分卖出后剩余数量会小于原始数量）
+  const lotById = new Map(pos.lots.filter((l) => l.id).map((l) => [l.id, l]));
+
   // 卖出明细（沿用重算/历史成本结果）
   const sellById = new Map(pos.sellResults.map((r) => [r.id, r]));
   const sells = (h.sells || []).map((s) => {
@@ -375,6 +380,18 @@ export function aggregate(h, currentPrice) {
     const profit = hasPrice ? Number(price) * qty - cost : null;
     const returnRate =
       hasPrice && unitCost > 0 ? ((Number(price) - unitCost) / unitCost) * 100 : null;
+
+    // 逐笔口径：只算该笔买入「尚未卖出」的部分。
+    // 送转会把批次数量放大、单位成本等比缩小，所以优先用批次里的值。
+    const lot = lotById.get(p.id);
+    const remainQty = lot ? Math.max(num(lot.remainQty), 0) : qty;
+    const remainUnitCost = lot ? num(lot.unitCost) : unitCost;
+    const remainCost = remainQty * remainUnitCost;
+    const remainMarketValue = hasPrice ? Number(price) * remainQty : null;
+    const remainProfit = hasPrice ? remainMarketValue - remainCost : null;
+    const remainReturnRate =
+      hasPrice && remainCost > 0 ? ((remainMarketValue - remainCost) / remainCost) * 100 : null;
+
     return {
       ...p,
       buyTime: dateKey(p.buyTime),
@@ -384,6 +401,12 @@ export function aggregate(h, currentPrice) {
       marketValue,
       profit,
       returnRate,
+      remainQty,
+      remainUnitCost,
+      remainCost,
+      remainMarketValue,
+      remainProfit,
+      remainReturnRate,
       targetPrice:
         buyPrice > 0 && p.targetProfitRate != null
           ? buyPrice * (1 + num(p.targetProfitRate) / 100)
@@ -483,6 +506,9 @@ export function aggregate(h, currentPrice) {
     splits,
     transactions,
     cost: pos.remainingCost,
+    // 剩余批次按「批次单位成本」合计出来的成本。
+    // 与 remainingCost 不一致 → 历史卖出成本是按别的成本法记录的（切过成本法但没重算）
+    lotsCostTotal: pos.lots.reduce((s, l) => s + Math.max(num(l.remainQty), 0) * num(l.unitCost), 0),
     remainingQty: pos.remainingQty,
     remainingCost: pos.remainingCost,
     buyQty: pos.buyQty,

@@ -78,15 +78,15 @@ function resetSort() {
       <button
         v-if="sortKey !== 'default'"
         @click="sortDesc = !sortDesc"
-        class="rounded-full border border-base-300 px-2.5 py-1 font-medium opacity-70 hover:opacity-100"
+        class="chip border border-base-300 px-2.5 py-1 font-medium text-base-content/80 hover:bg-base-200"
         :title="sortDesc ? '当前：从高到低' : '当前：从低到高'"
       >{{ sortDesc ? '↓ 高→低' : '↑ 低→高' }}</button>
       <button
         v-if="sortKey !== 'default'"
         @click="resetSort"
-        class="rounded-full border border-base-300 px-2.5 py-1 opacity-60 hover:opacity-100"
+        class="chip border border-base-300 px-2.5 py-1 text-base-content/70 hover:bg-base-200"
       >清除排序</button>
-      <span class="opacity-40">共 {{ holdings.length }} 只</span>
+      <span class="text-subtle">共 {{ holdings.length }} 只</span>
     </div>
 
     <div class="space-y-4">
@@ -103,7 +103,7 @@ function resetSort() {
 
       <div
         v-if="!holdings.length"
-        class="rounded-xl border border-dashed border-base-300 p-10 text-center opacity-40"
+        class="rounded-xl border border-dashed border-base-300 p-10 text-center text-muted"
       >
         暂无持仓，点击右上角「添加持仓」开始记录
       </div>

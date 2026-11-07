@@ -10,7 +10,7 @@
  *  - 静态资源（assets/*、图标、manifest）：缓存优先（Vite 产物带 hash，天然可长缓存）。
  *  - 跨域行情请求（腾讯/东财）：不接管，由页面直连拿实时数据。
  */
-const VERSION = 'v3';
+const VERSION = 'v4';
 /** 部署根路径，形如 '/' 或 '/stock-advisor/' */
 const BASE = new URL(self.registration.scope).pathname;
 const SHELL_CACHE = `stock-shell-${VERSION}`;
