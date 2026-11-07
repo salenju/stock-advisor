@@ -94,6 +94,10 @@ VITE_DATA_MODE=local npm run build
 4. 点「**上传到云端**」创建第一个云端文件；之后每次**持仓/交易数据**改动会自动上传（停止操作 **3 分钟**后合并推送一次）。行情刷新只写本机，不会产生云端提交
 5. 在另一台设备（比如手机）打开同一个页面 → 选云同步模式 → 填**同样的四个字段** → 点「**从云端拉取**」
 
+> 💡 **嫌建仓库/建令牌麻烦？** 还有一条计划中的"一键"快车道：用 GitHub OAuth Device Flow 授权，页面自动建私有仓库并写好配置。
+> 实施步骤、代码落点、安全权衡（`repo` scope 比 Fine-grained 令牌宽）见 [`docs/GitHub一键建仓与OAuth授权.md`](docs/GitHub一键建仓与OAuth授权.md)。
+> 该功能**尚未合并进代码**，当前请按上面 1–5 步手动配置；逐项细节与排错见 [`docs/GitHub私有仓库令牌配置.md`](docs/GitHub私有仓库令牌配置.md)。
+
 **加密口令（可选，强烈建议填）**：填了口令后，数据在本机用 AES-GCM（PBKDF2-SHA256，20 万次迭代）加密再上传，GitHub 上只有密文 —— 即使仓库被误设为公开、或令牌泄露，别人也读不到持仓。
 
 > ⚠️ **口令没有找回途径**。忘记口令 = 那份云端数据解不开，只能换口令重新上传覆盖。口令请和令牌一起存进密码管理器。
@@ -167,8 +171,21 @@ scripts/                static-server.mjs（检查脚本用的最小静态托管
 test/                   单元测试（账本 / 策略 / 统计 / 快照 / CSV / 行情解析 / 云同步）
 *.mjs                   项目根下的端到端检查脚本（check:*）
 data/holdings.example.json  导入示例（不是运行时数据）
+docs/                   设计与配置文档
+├── GitHub私有仓库令牌配置.md 手动路线：Fine-grained 令牌逐项配置 / 排错 / 接口清单
+├── GitHub一键建仓与OAuth授权.md 一键路线：OAuth Device Flow + 自动建私有仓库（实施方案）
+├── 技术设计.md / 需求文档.md / 项目计划.md / 问题集.md / 优化建议.md / 自测清单.md
 .github/workflows/pages.yml GitHub Pages 自动部署
 ```
+
+## 文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [`docs/GitHub私有仓库令牌配置.md`](docs/GitHub私有仓库令牌配置.md) | **手动路线**（当前可用）：Fine-grained 令牌逐项配置、空仓库初始化、按状态码排错、页面调用的接口清单 |
+| [`docs/GitHub一键建仓与OAuth授权.md`](docs/GitHub一键建仓与OAuth授权.md) | **一键路线**（实施方案）：OAuth Device Flow 原理与完整时序、注册 OAuth App、`github-oauth.js` / `github-provision.js` 代码骨架、面板状态机、`repo` scope 的安全权衡、自测清单 |
+| [`docs/技术设计.md`](docs/技术设计.md) · [`docs/需求文档.md`](docs/需求文档.md) · [`docs/项目计划.md`](docs/项目计划.md) | 架构、需求与规划 |
+| [`docs/盈亏计算规则.md`](docs/盈亏计算规则.md) · [`docs/自测清单.md`](docs/自测清单.md) · [`docs/问题集.md`](docs/问题集.md) · [`docs/优化建议.md`](docs/优化建议.md) | 账本口径、验收清单与已知问题 |
 
 ## 技术栈
 

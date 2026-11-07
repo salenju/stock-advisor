@@ -3,6 +3,7 @@
 > 关联：`README.md` 的「把 GitHub 私有仓库当「数据库」（跨设备同步）」
 > 适用：用**自己的私有仓库**存放持仓数据，页面通过 GitHub Contents API 读写其中一个文件
 > 代码位置：`web/src/services/github-api.js`（接口与错误文案）、`github-sync.js`（配置项与同步策略）
+> 另一条路线：不想手动建仓库/建令牌，见 [`GitHub一键建仓与OAuth授权.md`](GitHub一键建仓与OAuth授权.md)（OAuth Device Flow，尚未合并进代码）
 
 ---
 
