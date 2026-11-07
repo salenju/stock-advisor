@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { REFRESH_MS, REGION_LABEL } from './constants/options.js';
 import { useTheme } from './composables/useTheme.js';
 import { usePwa } from './composables/usePwa.js';
 import { useHoldings } from './composables/useHoldings.js';
+import { useNotify } from './composables/useNotify.js';
 import { currentMode, MODE_BADGE, MODE_LABEL, githubSync, resetLocalCache } from './services/dataSource.js';
 
 import AppHeader from './components/AppHeader.vue';
@@ -28,6 +29,27 @@ const {
   costByCurrency, marketByCurrency, todayProfitByCurrency, holdingProfitByCurrency, realizedProfitByCurrency,
   fetchHoldings, refreshNow, startAutoRefresh, stopAutoRefresh, deletePurchase, deleteTransaction,
 } = useHoldings();
+
+// ---------- 浏览器通知（页面级提醒）----------
+// 每次行情刷新后检查一遍阈值；同一持仓同一天只提醒一次。
+// 注意：只在页面开着时有效，关掉页面请依赖 GitHub Actions → 飞书（docs/飞书定时提醒配置.md）。
+const {
+  alerts: notifyAlerts,
+  flash: notifyFlash,
+  tipVisible: notifyTipVisible,
+  initNotify,
+  requestNotifyPermission,
+  checkAlerts,
+  clearAlerts,
+  dismissTip,
+} = useNotify();
+
+async function enableBrowserNotify() {
+  const r = await requestNotifyPermission();
+  if (r === 'granted') {
+    await checkAlerts(holdings.value); // 授权后立刻补一次，不用等下一轮刷新
+  }
+}
 
 // ---------- 数据模式 ----------
 // local  = 数据只存本机浏览器
@@ -204,9 +226,15 @@ const fxNote = computed(() => {
   return `汇率来源：${src}${day ? `（${day}）` : ''}`;
 });
 
+// 每次行情刷新（lastUpdated 变化）后检查一次提醒（失败不影响主流程）
+watch(lastUpdated, () => {
+  checkAlerts(holdings.value).catch(() => {});
+});
+
 onMounted(() => {
   initTheme();
   initPwa();
+  initNotify();
   fetchHoldings();
   startAutoRefresh();
   if (dataMode === 'github') {
@@ -257,6 +285,47 @@ onUnmounted(() => {
           <li>在弹出菜单里选择「添加到主屏幕」</li>
           <li>点右上角「添加」，桌面会出现「股票秘书」图标</li>
         </ol>
+      </div>
+
+      <!-- 浏览器通知：未授权时引导一次（关掉后不再出现） -->
+      <div v-if="notifyTipVisible" class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border border-primary/40 bg-primary/10 p-3 text-xs">
+        <span class="inline-flex items-center gap-1.5 font-medium">
+          <AppIcon name="bell" :size="14" /> 开启桌面通知
+        </span>
+        <span class="opacity-70">
+          价格触及止盈 / 止损 / 补仓或日涨跌阈值时，浏览器会主动弹提醒（同一标的同一天只提醒一次）。
+        </span>
+        <div class="ml-auto flex items-center gap-1.5">
+          <button @click="enableBrowserNotify" class="btn btn-xs btn-primary">开启</button>
+          <button @click="dismissTip" class="btn btn-xs btn-ghost">不再提示</button>
+        </div>
+      </div>
+
+      <!-- 本轮命中的提醒（无论是否授权都列出来，便于回看） -->
+      <div v-if="notifyAlerts.length" class="mb-4 rounded-xl border border-warning/50 bg-warning/10 p-3 text-xs">
+        <div class="mb-1 flex items-center justify-between gap-2">
+          <span class="inline-flex items-center gap-1.5 font-medium">
+            <AppIcon name="bell" :size="14" /> 策略提醒（{{ notifyAlerts.length }}）
+            <span v-if="notifyFlash" class="font-normal text-success">{{ notifyFlash }}</span>
+          </span>
+          <button
+            @click="clearAlerts"
+            class="hit-area rounded px-1.5 text-base leading-none opacity-70 hover:opacity-100"
+            title="关闭提醒"
+            aria-label="关闭提醒"
+          >×</button>
+        </div>
+        <ul class="space-y-1">
+          <li v-for="a in notifyAlerts" :key="a.key">
+            <b class="text-warning">{{ a.label }}</b>
+            <span class="ml-1 font-medium">{{ a.name }}</span>
+            <span class="opacity-70">— {{ a.body }}</span>
+          </li>
+        </ul>
+        <p class="mt-1.5 opacity-60">
+          同一标的同一提醒当天只推送一次。关掉页面后不会再提醒；需要「人不在也能收到」请配置
+          <b>飞书定时提醒</b>（见 docs/飞书定时提醒配置.md）。
+        </p>
       </div>
 
       <!-- 云端更新提醒（仅在云同步模式下轮询到其他设备的提交时出现） -->

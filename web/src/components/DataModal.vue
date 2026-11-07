@@ -18,6 +18,7 @@ import {
 } from '../services/dataSource.js';
 import { downloadText, downloadCsv } from '../core/csv.js';
 import { useHoldings } from '../composables/useHoldings.js';
+import { useNotify } from '../composables/useNotify.js';
 import GitHubSyncPanel from './GitHubSyncPanel.vue';
 import BaseModal from './BaseModal.vue';
 import AppIcon from './AppIcon.vue';
@@ -28,6 +29,46 @@ const props = defineProps({
 const emit = defineEmits(['close', 'changed']);
 
 const { exportCsv, setCostMethodAll } = useHoldings();
+
+// ---------- 提醒（浏览器通知）----------
+const {
+  permission: notifyPermission,
+  enabled: notifyEnabled,
+  initNotify,
+  requestNotifyPermission,
+  setEnabled,
+  sendTestNotification,
+  resetTip,
+} = useNotify();
+const notifyMsg = ref('');
+
+const PERMISSION_LABEL = {
+  unsupported: '当前浏览器不支持通知',
+  default: '尚未授权',
+  granted: '已授权',
+  denied: '已被浏览器拒绝',
+};
+
+async function toggleNotify(e) {
+  await setEnabled(e.target.checked);
+  notifyMsg.value = e.target.checked ? '已开启提醒（还需授权浏览器通知）' : '已关闭提醒';
+}
+
+async function askNotifyPermission() {
+  notifyMsg.value = '';
+  const r = await requestNotifyPermission();
+  if (r === 'granted') notifyMsg.value = '已授权，价格触达阈值时会弹出桌面通知';
+  else if (r === 'denied') notifyMsg.value = '浏览器拒绝了通知权限：请在地址栏左侧的站点设置里手动允许';
+  else if (r === 'unsupported') notifyMsg.value = '当前浏览器不支持桌面通知';
+  else notifyMsg.value = '未授权，价格触达时只在页面内提示';
+}
+
+function testNotify() {
+  const ok = sendTestNotification();
+  notifyMsg.value = ok
+    ? '已发送测试通知（没看到的话检查系统「勿扰模式」与浏览器通知开关）'
+    : '发送失败：请先点「允许通知」授权';
+}
 
 const mode = ref(currentMode());
 const isLocal = computed(() => mode.value === 'local');
@@ -100,6 +141,8 @@ watch(
       mode.value = currentMode();
       reset();
       refresh();
+      notifyMsg.value = '';
+      initNotify();
     }
   }
 );
@@ -308,6 +351,52 @@ function close() {
 
       <!-- GitHub 云同步配置（仅在云同步模式下显示） -->
       <GitHubSyncPanel :show="isGithub" @changed="refresh" />
+
+      <!-- 提醒 -->
+      <section class="mb-4 rounded-xl border border-base-300 p-3">
+        <div class="mb-2 text-sm font-medium">提醒</div>
+        <label class="flex items-start gap-2">
+          <input
+            :checked="notifyEnabled"
+            @change="toggleNotify"
+            type="checkbox"
+            class="checkbox checkbox-primary checkbox-xs mt-0.5"
+          />
+          <span class="text-xs">
+            <b>页面内提醒 + 浏览器桌面通知</b>
+            <span class="mt-0.5 block text-[11px] text-subtle">
+              每次刷新行情后检查止盈 / 止损 / 补仓 / 移动止盈 / 日涨跌阈值，命中就在页面顶部提示，
+              已授权时同时弹桌面通知。同一标的同一天只提醒一次。
+              <b class="text-warning">只在页面开着时有效</b>（纯静态站没有后台进程）。
+            </span>
+          </span>
+        </label>
+
+        <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span class="rounded-full bg-base-200 px-2 py-0.5">
+            通知权限：<b :class="notifyPermission === 'granted' ? 'text-success' : notifyPermission === 'denied' ? 'text-error' : ''">{{ PERMISSION_LABEL[notifyPermission] || notifyPermission }}</b>
+          </span>
+          <button
+            @click="askNotifyPermission"
+            class="btn btn-xs btn-info"
+            :disabled="notifyPermission === 'unsupported'"
+          >允许通知</button>
+          <button
+            @click="testNotify"
+            class="btn btn-xs btn-outline"
+            :disabled="notifyPermission !== 'granted'"
+          >发送测试通知</button>
+          <button @click="resetTip" class="btn btn-xs btn-ghost">重新显示首页提示</button>
+        </div>
+
+        <p class="mt-2 text-[11px] leading-relaxed text-subtle">
+          需要「人不在也能收到」时，用 GitHub Actions 定时任务推送飞书：
+          数据仍在你自己的私有仓库里，workflow 每 15 分钟读一次、命中阈值才发消息。
+          配置步骤见 <code>docs/飞书定时提醒配置.md</code>。
+          另外 iOS 只有在「添加到主屏幕」之后才会收到 Web 通知。
+        </p>
+        <p v-if="notifyMsg" class="mt-1.5 rounded-lg bg-base-200 px-2 py-1 text-[11px]">{{ notifyMsg }}</p>
+      </section>
 
       <!-- 本机数据：备份 / 导入 / 存储概览 -->
       <!-- 概览 -->

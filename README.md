@@ -9,6 +9,8 @@
 - **成本法可选**：FIFO（默认，先买先卖）/ LIFO / WAC 移动加权平均，可显式重算历史卖出成本
 - **实时行情**：浏览器直连腾讯财经（A 股/港股/美股）与东财基金净值，交易时段自动刷新
 - **策略提示**：止盈（成本加权）、止损（按笔）、补仓（降幅/目标价）、移动止盈、单日涨跌告警
+- **提醒（页面内）**：每次刷新行情后检查阈值，命中即在页面顶部列出并弹**浏览器桌面通知**（同一标的同一天只提醒一次）
+- **提醒（飞书）**：GitHub Actions 定时检查同一套阈值，命中才推送飞书卡片（可选签名校验、默认 12 小时冷却、不需要电脑开机）
 - **加仓测算**：按买入数量算摊薄后的新成本；或设定目标成本反推需要买入多少股（含手续费、A股按手取整）
 - **复盘统计**：已清仓战绩、胜率、盈亏比、年度已实现收益、最佳/最差 Top3、组合分布饼图
 - **每日快照**：当天首次打开且已过收盘时间时自动补记一条，供复盘与 CSV 导出
@@ -77,7 +79,9 @@ VITE_DATA_MODE=local npm run build
 
 **从旧版后端迁移**：在旧版页面导出 `data/holdings.json`（裸数组或完整备份包均可）→ 切到本地模式 → 「🗄 数据」→ 选择该文件 → 按「合并」导入。示例文件见 `data/holdings.example.json`。
 
-**已随后端一起移除的能力**：飞书机器人推送、无人值守定时任务、历史收益趋势图（依赖后端 K 线重放）。收益归因与每日快照仍在，用「复盘统计」页查看。
+**已随后端一起移除的能力**：历史收益趋势图（依赖后端 K 线重放）。收益归因与每日快照仍在，用「复盘统计」页查看。
+
+**飞书推送与「无人值守」已用另一种方式恢复**：不再需要服务器，改由 GitHub Actions 定时读你自己的私有仓库并判阈值（见下方「提醒」章节），没命中就不产生任何消息与提交。
 
 ## 把 GitHub 私有仓库当「数据库」（跨设备同步）
 
@@ -125,10 +129,33 @@ VITE_DATA_MODE=local npm run build
 - 超过 7 天未导出备份会提醒；清空本地数据需二次确认
 - CSV 仅用于 Excel 查看，不能替代完整备份（不含汇率设置）
 
+## 提醒：页面通知 + 飞书定时推送
+
+阈值只有一份口径（`web/src/core/alerts.js`），可以分别投递到两个地方：
+
+| | **页面通知** | **飞书定时推送** |
+| --- | --- | --- |
+| 谁在盯着 | 打开着的浏览器标签页 | GitHub Actions（云端定时任务） |
+| 页面要开着吗 | 要 | 不要，手机飞书能收到 |
+| 怎么开 | 首页提示条点「开启」→ 浏览器允许通知（或「🗄 数据 → 提醒 → 允许通知」） | 在自己仓库配几个 Secrets / Variables，见下方文档 |
+| 去重 | 同一标的 + 同一种提醒，**当天一次** | 同一键默认 **12 小时**冷却一次（可调） |
+
+判定范围：止盈、移动止盈、止损、补仓、日涨告警、日跌告警。
+
+**飞书推送的最小配置**（细节与排错见 [`docs/飞书定时提醒配置.md`](docs/飞书定时提醒配置.md)）：
+
+1. 飞书群 → 群设置 → 群机器人 → 添加「自定义机器人」→ 拿到 Webhook（建议同时开「签名校验」）
+2. 仓库 `Settings → Secrets and variables → Actions`：
+   - Variables：`NOTIFY_ENABLED=true`、`DATA_OWNER`、`DATA_REPO`（可选 `DATA_PATH` / `DATA_BRANCH` / `NOTIFY_COOLDOWN_HOURS`）
+   - Secrets：`DATA_TOKEN`、`FEISHU_WEBHOOK`（可选 `FEISHU_SECRET` / `DATA_PASSPHRASE`）
+3. Actions 页签启用「定时提醒（飞书）」→ 先设 `NOTIFY_DRY_RUN=true` 手动跑一次看日志 → 再关掉它正式跑
+
+工作流 `.github/workflows/notify.yml` 默认在北京时间 09:00–16:59 每 15 分钟检查一次（UTC cron，工作日）。它只读**你自己私有仓库**里的数据文件；`NOTIFY_ENABLED` 不为 `true` 时整个任务直接跳过。
+
 ## 自动化测试
 
 ```bash
-npm test              # node:test 单元测试（账本/策略/统计/快照/行情解析/云同步）
+npm test              # node:test 单元测试（账本/策略/统计/快照/行情解析/云同步/提醒去重/飞书卡片）
 npm run test:sync     # 云同步纯单测（信封加密往返 / GitHub Contents API 客户端，= npm test 的子集）
 npm run check:local   # 本地模式端到端（无头 Chrome：导入→行情→持久化→导出→回滚→模式面板）
 npm run check:sync    # 云同步端到端（拦 GitHub API 用内存假仓库，跑通配置→上传→换设备拉取）
@@ -167,15 +194,22 @@ web/src/                Vue3 + Vite + Tailwind 前端（源码在 web/，构建�
                         复盘统计、新增持仓、交易、买入记录、CSV 导入、数据面板、云同步配置面板
 
 web/public/             manifest.json / sw.js / 图标（PWA，随 dist 一起发布）
+web/src/core/alerts.js ★ 提醒判定（页面通知与 Actions 共用同一口径）
+web/src/composables/useNotify.js 浏览器通知：权限、开关、当天去重
 scripts/                static-server.mjs（检查脚本用的最小静态托管）
-test/                   单元测试（账本 / 策略 / 统计 / 快照 / CSV / 行情解析 / 云同步）
+├── notify-cron.mjs     定时提醒：读私有仓库数据 → 拉行情 → 判阈值 → 推飞书
+└── feishu.mjs          飞书机器人签名（HMAC-SHA256）与 interactive 卡片构造
+test/                   单元测试（账本 / 策略 / 统计 / 快照 / CSV / 行情解析 / 云同步 / 提醒 / 飞书）
 *.mjs                   项目根下的端到端检查脚本（check:*）
 data/holdings.example.json  导入示例（不是运行时数据）
 docs/                   设计与配置文档
 ├── GitHub私有仓库令牌配置.md 手动路线：Fine-grained 令牌逐项配置 / 排错 / 接口清单
 ├── GitHub一键建仓与OAuth授权.md 一键路线：OAuth Device Flow + 自动建私有仓库（实施方案）
+├── 飞书定时提醒配置.md  提醒配置：页面通知 / Actions 定时推送 / 冷却状态 / 排错
 ├── 技术设计.md / 需求文档.md / 项目计划.md / 问题集.md / 优化建议.md / 自测清单.md
-.github/workflows/pages.yml GitHub Pages 自动部署
+.github/workflows/
+├── pages.yml           GitHub Pages 自动部署
+└── notify.yml          定时检查阈值并推送飞书（未配置 NOTIFY_ENABLED 时跳过）
 ```
 
 ## 文档
@@ -184,6 +218,7 @@ docs/                   设计与配置文档
 | --- | --- |
 | [`docs/GitHub私有仓库令牌配置.md`](docs/GitHub私有仓库令牌配置.md) | **手动路线**（当前可用）：Fine-grained 令牌逐项配置、空仓库初始化、按状态码排错、页面调用的接口清单 |
 | [`docs/GitHub一键建仓与OAuth授权.md`](docs/GitHub一键建仓与OAuth授权.md) | **一键路线**（实施方案）：OAuth Device Flow 原理与完整时序、注册 OAuth App、`github-oauth.js` / `github-provision.js` 代码骨架、面板状态机、`repo` scope 的安全权衡、自测清单 |
+| [`docs/飞书定时提醒配置.md`](docs/飞书定时提醒配置.md) | **提醒配置**：页面通知的权限与限制、飞书机器人创建、Actions 的 Secrets/Variables 清单、去重与 `notify-state.json`、cron 时段、排错表 |
 | [`docs/技术设计.md`](docs/技术设计.md) · [`docs/需求文档.md`](docs/需求文档.md) · [`docs/项目计划.md`](docs/项目计划.md) | 架构、需求与规划 |
 | [`docs/盈亏计算规则.md`](docs/盈亏计算规则.md) · [`docs/自测清单.md`](docs/自测清单.md) · [`docs/问题集.md`](docs/问题集.md) · [`docs/优化建议.md`](docs/优化建议.md) | 账本口径、验收清单与已知问题 |
 
@@ -193,4 +228,5 @@ docs/                   设计与配置文档
 - 存储：IndexedDB（降级 localStorage）
 - 行情：腾讯财经（免 Key，浏览器直连）+ 东方财富基金净值
 - 同步：GitHub Contents API + 可选 AES-GCM 端到端加密
+- 提醒：Web Notification API（页面内）+ GitHub Actions 定时任务 → 飞书自定义机器人（签名校验 + interactive 卡片）
 - 测试：node:test + puppeteer-core

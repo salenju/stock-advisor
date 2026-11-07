@@ -1,0 +1,52 @@
+name: 定时提醒（飞书）
+
+# 无人值守提醒：定时读「你自己私有仓库」里的数据文件 → 拉行情 → 判阈值 → 命中才推飞书。
+# 数据不出你的仓库；本 workflow 只需要一个能读写该仓库的令牌。
+#
+# 启用方式（一次性）：
+#   Settings → Secrets and variables → Actions
+#     变量（Variables）：NOTIFY_ENABLED=true  DATA_OWNER  DATA_REPO  [DATA_PATH] [DATA_BRANCH] [NOTIFY_COOLDOWN_HOURS]
+#     密钥（Secrets）  ：DATA_TOKEN  FEISHU_WEBHOOK  [DATA_PASSPHRASE] [FEISHU_SECRET]
+#   未设置 NOTIFY_ENABLED=true 时本 workflow 直接跳过（不会每分钟报红）。
+# 详见 docs/飞书定时提醒配置.md
+on:
+  schedule:
+    # cron 用 UTC。默认覆盖 A股/港股交易时段：01:00–08:59 UTC = 北京 09:00–16:59
+    # 需要美股时段（北京 21:30–04:00）再加一行：- cron: '*/15 13-21 * * 1-5'
+    - cron: '*/15 1-8 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 上一轮没跑完时不并发，避免同一提醒推两次（脚本本身也有冷却兜底）
+concurrency:
+  group: notify-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    if: ${{ vars.NOTIFY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: 检查阈值并推送飞书
+        env:
+          DATA_TOKEN: ${{ secrets.DATA_TOKEN }}
+          DATA_OWNER: ${{ vars.DATA_OWNER }}
+          DATA_REPO: ${{ vars.DATA_REPO }}
+          DATA_PATH: ${{ vars.DATA_PATH }}
+          DATA_BRANCH: ${{ vars.DATA_BRANCH }}
+          DATA_PASSPHRASE: ${{ secrets.DATA_PASSPHRASE }}
+          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+          FEISHU_SECRET: ${{ secrets.FEISHU_SECRET }}
+          NOTIFY_COOLDOWN_HOURS: ${{ vars.NOTIFY_COOLDOWN_HOURS }}
+          # 首次接入建议先手动跑一次并设为 true：只打印卡片、不发消息
+          NOTIFY_DRY_RUN: ${{ vars.NOTIFY_DRY_RUN }}
+        run: node scripts/notify-cron.mjs

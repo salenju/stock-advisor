@@ -37,7 +37,8 @@ export function takeFifoMigrationPending() {
 
 export const DEFAULT_SETTINGS = {
   fx: { rates: { ...DEFAULT_RATES }, updatedAt: null },
-  notify: { nearThresholdPct: 2, maxDailyMovePct: 50 },
+  // browser：页面级提醒（含浏览器桌面通知）开关；nearThresholdPct：临近阈值容差；maxDailyMovePct：异常波动过滤
+  notify: { browser: true, nearThresholdPct: 2, maxDailyMovePct: 50 },
   schedule: { snapshot: true, snapshotAt: '16:10' },
 };
 
