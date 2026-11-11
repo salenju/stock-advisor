@@ -110,6 +110,9 @@ export function createHolding(b = {}) {
     type: b.type,
     strategy: b.strategy || '',
     costMethod: normalizeCostMethod(b.costMethod),
+    // 持仓级止盈/止损（未填 0；有买入记录时 syncFromPurchases 会按成本加权兜底）
+    targetProfitRate: Number(b.targetProfitRate) || 0,
+    stopLossRate: Number(b.stopLossRate) || 0,
     snapshotDate: b.snapshotDate || today,
     snapshotProfit: Number(b.snapshotProfit) || 0,
     snapshotReturnRate: Number(b.snapshotReturnRate) || 0,

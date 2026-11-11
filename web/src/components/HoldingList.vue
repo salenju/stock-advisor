@@ -7,7 +7,7 @@ const props = defineProps({
   fxRates: { type: Object, default: () => ({ CNY: 1 }) },
 });
 
-const emit = defineEmits(['open-txn', 'open-add-buy', 'edit-buy', 'delete-buy', 'delete-txn']);
+const emit = defineEmits(['open-txn', 'open-add-buy', 'edit-buy', 'delete-buy', 'delete-txn', 'edit-holding']);
 
 // 把事件带上对应的持仓对象向上透传
 function forward(event, holding, payload) {
@@ -99,6 +99,7 @@ function resetSort() {
         @edit-buy="(p) => forward('edit-buy', h, p)"
         @delete-buy="(p) => forward('delete-buy', h, p)"
         @delete-txn="(p) => forward('delete-txn', h, p)"
+        @edit-holding="forward('edit-holding', h)"
       />
 
       <div

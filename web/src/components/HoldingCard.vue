@@ -13,7 +13,7 @@ const props = defineProps({
   holding: { type: Object, required: true },
 });
 
-const emit = defineEmits(['open-txn', 'open-add-buy', 'edit-buy', 'delete-buy', 'delete-txn']);
+const emit = defineEmits(['open-txn', 'open-add-buy', 'edit-buy', 'delete-buy', 'delete-txn', 'edit-holding']);
 
 const { updateHolding, recomputeHolding } = useHoldings();
 
@@ -100,7 +100,15 @@ async function onClickRecompute() {
             <span class="badge badge-s badge-neutral" :title="`成本核算方法：${costMethodLabel}`">{{ costMethodLabel }}</span>
             <span v-if="holding.inconsistentSell" class="badge badge-s badge-error" title="卖出记录与买入明细无法完全匹配（可能手工改过文件），建议核对">明细异常</span>
           </div>
-          <div class="mt-1 font-mono text-xs opacity-60">{{ holding.code }}</div>
+          <div class="mt-1 flex items-center gap-1 text-xs">
+            <span class="font-mono opacity-60">{{ holding.code }}</span>
+            <button
+              @click="emit('edit-holding')"
+              class="hit-area align-middle text-primary hover:text-primary/70"
+              title="编辑名称 / 代码 / 地区 / 类型"
+              aria-label="编辑持仓基础信息"
+            ><AppIcon name="pencil" :size="13" /></button>
+          </div>
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">

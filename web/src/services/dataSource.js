@@ -194,6 +194,30 @@ const localSource = {
 
   async patch(id, body) {
     const h = findHolding(id);
+
+    // 基础信息：代码填错 / 类型选错时可以直接改正（否则会一直用错误的标的拉行情）
+    const ident = {};
+    if (body.name !== undefined) ident.name = String(body.name).trim();
+    if (body.code !== undefined) ident.code = String(body.code).trim();
+    if (body.region !== undefined) ident.region = String(body.region).trim();
+    if (body.type !== undefined) ident.type = String(body.type).trim();
+    for (const [k, v] of Object.entries(ident)) {
+      if (!v) throw new Error(`缺少字段: ${k}`);
+    }
+    // 标的变了（代码 / 市场 / 类型决定行情通道），旧行情与峰值收益全部作废，
+    // 避免下一轮取价失败时继续用错误标的的价格算收益。
+    const symbolChanged =
+      (ident.code !== undefined && ident.code !== h.code) ||
+      (ident.region !== undefined && ident.region !== h.region) ||
+      (ident.type !== undefined && ident.type !== h.type);
+    Object.assign(h, ident);
+    if (symbolChanged) {
+      h.currentPrice = null;
+      h.prevClose = null;
+      h.lastUpdated = null;
+      h.peakReturnRate = null;
+    }
+
     if (body.dailyDropAlertPct !== undefined) h.dailyDropAlertPct = numOrNull(body.dailyDropAlertPct);
     if (body.dailyRiseAlertPct !== undefined) h.dailyRiseAlertPct = numOrNull(body.dailyRiseAlertPct);
     if (body.trailingStopPct !== undefined) {

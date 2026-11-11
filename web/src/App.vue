@@ -14,7 +14,7 @@ import AllocationChart from './components/AllocationChart.vue';
 import HoldingList from './components/HoldingList.vue';
 import PlanPanel from './components/PlanPanel.vue';
 import StatsPanel from './components/StatsPanel.vue';
-import AddHoldingModal from './components/AddHoldingModal.vue';
+import HoldingFormModal from './components/HoldingFormModal.vue';
 import TransactionModal from './components/TransactionModal.vue';
 import BuyRecordModal from './components/BuyRecordModal.vue';
 import ImportCsvModal from './components/ImportCsvModal.vue';
@@ -143,6 +143,13 @@ const ringOffset = computed(() => RING_C * (1 - progress.value));
 
 // ---------- 弹窗状态 ----------
 const showAdd = ref(false);
+// 编辑持仓基础信息（名称 / 代码 / 地区 / 类型等）
+const showEditHolding = ref(false);
+const editingHolding = ref(null);
+function openEditHolding(h) {
+  editingHolding.value = h;
+  showEditHolding.value = true;
+}
 const showTxn = ref(false);
 const showBuy = ref(false);
 const showImport = ref(false);
@@ -403,6 +410,7 @@ onUnmounted(() => {
           @edit-buy="openEditBuy"
           @delete-buy="handleDeleteBuy"
           @delete-txn="handleDeleteTxn"
+          @edit-holding="openEditHolding"
         />
 
         <p class="mt-4 text-xs text-muted">
@@ -416,7 +424,12 @@ onUnmounted(() => {
       <StatsPanel v-else />
     </main>
 
-    <AddHoldingModal :show="showAdd" @close="showAdd = false" />
+    <HoldingFormModal :show="showAdd" @close="showAdd = false" />
+    <HoldingFormModal
+      :show="showEditHolding"
+      :holding="editingHolding"
+      @close="showEditHolding = false"
+    />
     <TransactionModal :show="showTxn" :txn="txn" @close="showTxn = false" />
     <BuyRecordModal :show="showBuy" :buy-form="buyForm" @close="showBuy = false" />
     <ImportCsvModal :show="showImport" @close="showImport = false" />
