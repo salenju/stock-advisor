@@ -52,10 +52,28 @@ export function isActive(h) {
   return !s || s === '持有';
 }
 
-// 已清仓判定（兼容旧值 '已卖出'）
+// 已清仓判定（兼容旧值 '已卖出' / 手工填写的 '清仓'）
 export function isFullyClosed(h) {
   const s = String(h?.status ?? '').trim();
-  return s === '全部卖出' || s === '已卖出';
+  return s === '全部卖出' || s === '已卖出' || s === '清仓';
+}
+
+/**
+ * 是否已清仓：状态为「全部卖出 / 清仓」，或有买入记录但剩余数量为 0。
+ * 用途：① 前端打「清仓」标记；② 清仓标的移出行情轮询队列（不再查询价格）。
+ * 说明：还没补买入记录的标的（purchases 为空）不算清仓，否则刚建的仓会立刻被跳过。
+ */
+export function isCleared(h) {
+  if (!h) return false;
+  if (isFullyClosed(h)) return true;
+  if (!Array.isArray(h.purchases) || !h.purchases.length) return false;
+  const qty = Number(h.remainingQty ?? h.buyQuantity ?? 0);
+  return Number.isFinite(qty) && qty <= EPS;
+}
+
+/** 行情轮询队列：只留在仓且未清仓的标的（全部卖出 / 数量为 0 的不再查价） */
+export function quoteTargets(list) {
+  return (list || []).filter((h) => h && isActive(h) && !isCleared(h));
 }
 
 // ---------- 记录归一化 ----------
@@ -167,6 +185,7 @@ function consumeCost(lots, qty, method) {
  *   buyQty: number, buyCost: number, buyFee: number,
  *   soldQty: number, soldCost: number, sellFee: number,
  *   remainingQty: number, remainingCost: number, avgCost: number,
+ *   status: string, cleared: boolean,   // cleared=剩余数量为 0（全部卖出 / 清仓）
  *   realizedProfit: number, dividendTotal: number, feesTotal: number,
  *   sellResults: Array,           // [{ id, costPrice, profit, returnRate, insufficient, source }]
  *   totals: Object,               // 分币种无关的合计，便于统计模块复用
@@ -274,8 +293,14 @@ export function computePositions(h, opts = {}) {
   // 5) 分红计入已实现收益（amount = 本次现金分红总额，本地币种）
   const dividendTotal = (h.dividends || []).reduce((s, d) => s + num(d.amount) - num(d.fee), 0);
 
+  // 6) 状态 / 清仓标记：有买入记录但剩余为 0 → 全部卖出（清仓）
+  const status = statusOf(h, { buyQty, remainingQty });
+  const cleared = isFullyClosed({ status });
+
   return {
     method,
+    status,
+    cleared,
     lots: lots.map((l) => ({ ...l, remainQty: Math.max(l.remain, 0) })),
     buyQty,
     buyCost,
@@ -538,7 +563,9 @@ export function aggregate(h, currentPrice) {
       hasPrice && lastBuyPrice > 0 ? ((lastBuyPrice - Number(price)) / lastBuyPrice) * 100 : null,
     peakReturnRate: h.peakReturnRate != null ? Number(h.peakReturnRate) : null,
     trailingStopPct: h.trailingStopPct != null ? Number(h.trailingStopPct) : null,
-    status: statusOf(h, pos),
+    status: pos.status,
+    // 已清仓（全部卖出 / 剩余数量为 0）：前端打「清仓」标记，且不再参与行情轮询
+    cleared: pos.cleared,
     // 明细与卖出记录不一致（如手工改过文件）时置 true，便于前端提示
     inconsistentSell: pos.sellResults.some((r) => r.insufficient),
   };

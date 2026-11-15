@@ -93,6 +93,11 @@ async function onClickRecompute() {
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-semibold">{{ holding.name }}</span>
             <span class="badge badge-s text-white" :class="holding.status === '持有' ? 'badge-success' : 'badge-error'">{{ holding.status }}</span>
+            <span
+              v-if="holding.cleared"
+              class="badge badge-s badge-neutral"
+              title="已清仓：剩余数量为 0，不再自动刷新行情、也不参与买卖点提醒"
+            >清仓</span>
             <span class="badge badge-s text-white" :class="regionBadge(holding.region).cls">{{ regionBadge(holding.region).text }}</span>
             <span class="badge badge-s badge-primary text-white">{{ holding.type }}</span>
             <span class="badge badge-s text-white" :class="strategyBadge(holding.strategy).cls">{{ strategyBadge(holding.strategy).text }}</span>

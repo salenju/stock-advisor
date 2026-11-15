@@ -11,6 +11,8 @@ import {
   unitCostOf,
   dateKey,
   isActive,
+  isCleared,
+  quoteTargets,
 } from '../web/src/core/derive.js';
 import { migrateHolding } from '../web/src/core/schema.js';
 
@@ -243,6 +245,30 @@ test('isActive：持有 / 空状态算在仓，已清仓不算', () => {
   assert.equal(isActive({}), true);
   assert.equal(isActive({ status: '全部卖出' }), false);
   assert.equal(isActive({ status: '已卖出' }), false);
+});
+
+test('全部卖出后：清仓标记置 true，并移出行情轮询队列', () => {
+  const h = H({ purchases: [BUY(10, 100, '2026-01-01', 0, 'p1')] });
+  applyTransaction(h, { type: 'SELL', price: 12, quantity: 100, date: '2026-02-01' });
+
+  const agg = aggregate(h);
+  assert.equal(agg.remainingQty, 0);
+  assert.equal(agg.status, '全部卖出');
+  assert.equal(agg.cleared, true);
+  assert.equal(isCleared(h), true, '有买入记录且剩余为 0 → 清仓');
+  assert.deepEqual(quoteTargets([h]), [], '清仓标的不再参与行情轮询');
+
+  // 部分卖出时不打清仓标记，仍在轮询队列里
+  const h2 = H({ purchases: [BUY(10, 100, '2026-01-01', 0, 'p1')] });
+  applyTransaction(h2, { type: 'SELL', price: 12, quantity: 40, date: '2026-02-01' });
+  assert.equal(aggregate(h2).cleared, false);
+  assert.equal(isCleared(h2), false);
+  assert.equal(quoteTargets([h2]).length, 1);
+
+  // 刚建仓（还没录入买入记录）不算清仓，仍会查价
+  const h3 = H({ status: '持有', purchases: [] });
+  assert.equal(isCleared(h3), false);
+  assert.equal(quoteTargets([h3]).length, 1);
 });
 
 test('迁移：旧扁平结构 → purchases，并补齐新字段', () => {

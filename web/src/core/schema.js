@@ -63,8 +63,8 @@ export function migrateHolding(h) {
     };
   }
 
-  // 统一历史状态值：'已卖出' → '全部卖出'
-  if (out.status === '已卖出') {
+  // 统一历史状态值：'已卖出' / '清仓' → '全部卖出'
+  if (out.status === '已卖出' || out.status === '清仓') {
     out = { ...out, status: '全部卖出' };
     changed = true;
   }

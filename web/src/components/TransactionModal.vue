@@ -2,11 +2,12 @@
 import { ref, watch, computed } from 'vue';
 import { useHoldings } from '../composables/useHoldings.js';
 import { TXN_TYPES } from '../constants/options.js';
+import { fmtQty } from '../composables/useFormat.js';
 import BaseModal from './BaseModal.vue';
 
 const props = defineProps({
   show: { type: Boolean, default: false },
-  txn: { type: Object, default: () => ({ id: '', name: '', type: 'BUY', price: '', quantity: '', date: '' }) },
+  txn: { type: Object, default: () => ({ id: '', name: '', type: 'BUY', price: '', quantity: '', date: '', remainingQty: 0 }) },
 });
 const emit = defineEmits(['close']);
 
@@ -21,6 +22,8 @@ const ratio = ref('');
 const note = ref('');
 const date = ref('');
 const txnError = ref('');
+// 「全部卖出」：勾选后数量锁定为剩余可卖数量，成交后即为清仓
+const sellAll = ref(false);
 
 watch(
   () => props.show,
@@ -35,13 +38,14 @@ watch(
       note.value = '';
       date.value = '';
       txnError.value = '';
+      sellAll.value = false;
     }
   }
 );
 
 const HINT = {
   BUY: '添加一笔买入记录（手续费会计入成本，拉低持仓均价）',
-  SELL: '添加一笔卖出记录（按当前成本法自动计算本笔成本与盈亏）',
+  SELL: '添加一笔卖出记录（按当前成本法自动计算本笔成本与盈亏）；选「全部卖出」可直接清仓',
   DIVIDEND: '添加一笔现金分红（计入已实现收益，不改变持仓成本）',
   SPLIT: '送转 / 拆股：每 1 份变成 ratio 份（如 10 送 5 填 1.5，1 拆 2 填 2）',
 };
@@ -49,8 +53,28 @@ const HINT = {
 const currentType = computed(() => TXN_TYPES.find((t) => t.value === type.value) || TXN_TYPES[0]);
 const needPriceQty = computed(() => type.value === 'BUY' || type.value === 'SELL');
 
+// 剩余可卖数量（用于「全部卖出」与「已清仓」提示）
+const remainQty = computed(() => {
+  const v = Number(props.txn.remainingQty);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+});
+const canSell = computed(() => type.value !== 'SELL' || remainQty.value > 0);
+// 送转后剩余数量可能是长小数：向下取到 6 位，避免「卖出数量超过持仓数量」
+const sellAllQty = computed(() => Math.floor(remainQty.value * 1e6) / 1e6);
+
+// 勾选 / 取消「全部卖出」时同步数量
+watch(sellAll, (v) => {
+  if (v) quantity.value = String(sellAllQty.value);
+  else quantity.value = '';
+});
+// 切走卖出类型时取消勾选，避免残留状态
+watch(type, (v) => {
+  if (v !== 'SELL') sellAll.value = false;
+});
+
 async function submitTxn() {
   txnError.value = '';
+  if (sellAll.value) quantity.value = String(sellAllQty.value);
   try {
     await submitTransaction({
       id: props.txn.id,
@@ -92,10 +116,32 @@ async function submitTxn() {
             <span class="mb-1 block text-muted">{{ type === 'BUY' ? '买入' : '卖出' }}价格</span>
             <input v-model="price" type="number" step="0.01" class="input input-bordered w-full" />
           </label>
-          <label class="block text-sm">
-            <span class="mb-1 block text-muted">数量</span>
-            <input v-model="quantity" type="number" step="1" class="input input-bordered w-full" />
-          </label>
+          <div class="block text-sm">
+            <span class="mb-1 flex items-center justify-between gap-2 text-muted">
+              <span>数量</span>
+              <span v-if="type === 'SELL'" class="text-[11px]">
+                {{ remainQty > 0 ? `可卖 ${fmtQty(remainQty)}` : '剩余数量 0' }}
+              </span>
+            </span>
+            <input
+              v-model="quantity"
+              type="number"
+              step="1"
+              class="input input-bordered w-full"
+              :disabled="type === 'SELL' && sellAll"
+              :class="type === 'SELL' && sellAll ? 'opacity-60' : ''"
+            />
+            <label
+              v-if="type === 'SELL' && remainQty > 0"
+              class="mt-1.5 flex cursor-pointer items-center gap-1.5 text-xs"
+            >
+              <input v-model="sellAll" type="checkbox" class="checkbox checkbox-xs" />
+              <span>全部卖出（清仓，共 {{ fmtQty(remainQty) }}）</span>
+            </label>
+            <p v-else-if="type === 'SELL'" class="mt-1.5 text-[11px] text-warning">
+              当前已是清仓状态（剩余数量为 0），无需再卖出。
+            </p>
+          </div>
         </template>
 
         <label v-if="type === 'DIVIDEND'" class="block text-sm">
@@ -129,8 +175,13 @@ async function submitTxn() {
       <p v-if="txnError" class="mt-3 text-sm text-error">{{ txnError }}</p>
     <template #footer>
       <button @click="emit('close')" class="btn btn-sm btn-ghost">取消</button>
-      <button @click="submitTxn" class="btn btn-sm" :class="currentType.cls">
-        确认{{ currentType.label }}
+      <button
+        @click="submitTxn"
+        class="btn btn-sm"
+        :class="currentType.cls"
+        :disabled="!canSell"
+      >
+        确认{{ currentType.label }}{{ type === 'SELL' && sellAll ? '（清仓）' : '' }}
       </button>
     </template>
   </BaseModal>

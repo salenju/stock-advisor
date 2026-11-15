@@ -16,6 +16,7 @@
 import {
   withDerived,
   isActive,
+  quoteTargets,
   applyTransaction,
   normalizePurchase,
   normalizeCostMethod,
@@ -166,11 +167,14 @@ const localSource = {
     const list = await loadLocal();
 
     // 行情：浏览器直连（腾讯实时报价 / 东财基金净值）
+    // 只查「还在仓」的标的：全部卖出 / 数量为 0 的已清仓标的移出轮询队列，不再浪费请求。
+    const targets = quoteTargets(list);
     let quote = null;
-    if (list.length) {
-      const open = anyMarketOpen(list.filter(isActive));
-      quote = await refreshQuotes(list, { maxMovePct: settings?.notify?.maxDailyMovePct });
+    if (targets.length) {
+      const open = anyMarketOpen(targets.filter(isActive));
+      quote = await refreshQuotes(targets, { maxMovePct: settings?.notify?.maxDailyMovePct });
       quote.open = open;
+      quote.skipped = list.length - targets.length;
       // 行情只写本机：价格是易变数据，推到云端既没意义又会刷屏提交
       if (quote.quoteOk > 0) await persistLocal('行情更新', { push: false });
     }

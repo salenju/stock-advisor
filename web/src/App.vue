@@ -158,7 +158,16 @@ const txn = ref({ id: '', name: '', type: 'BUY', price: '', quantity: '', date: 
 const buyForm = ref({ id: '', name: '', pid: '', buyPrice: '', buyQuantity: '', buyTime: '', targetProfitRate: '', stopLossRate: '', fee: '' });
 
 function openTxn(h, type) {
-  txn.value = { id: h.id, name: h.name, type, price: '', quantity: '', date: '' };
+  // remainingQty 供「全部卖出」一键填满数量（弹窗内不再重新拉数据）
+  txn.value = {
+    id: h.id,
+    name: h.name,
+    type,
+    price: '',
+    quantity: '',
+    date: '',
+    remainingQty: Number(h.remainingQty) > 0 ? Number(h.remainingQty) : 0,
+  };
   showTxn.value = true;
 }
 function openAddBuy(h) {
