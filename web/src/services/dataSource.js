@@ -21,6 +21,7 @@ import {
   normalizePurchase,
   normalizeCostMethod,
   recomputeSells,
+  roundPrice,
   syncFromPurchases,
   COST_METHODS,
 } from '../core/derive.js';
@@ -275,7 +276,7 @@ const localSource = {
     const p = (h.purchases || []).find((x) => x.id === pid);
     if (!p) throw new Error('买入记录不存在');
     if (body.buyPrice !== undefined) {
-      const v = Number(body.buyPrice);
+      const v = roundPrice(body.buyPrice);
       if (v > 0) p.buyPrice = v;
     }
     if (body.buyQuantity !== undefined) {
@@ -317,7 +318,7 @@ const localSource = {
     if (!sell && !div && !split) throw new Error('交易记录不存在');
     if (sell) {
       if (body.fee !== undefined) sell.fee = Number(body.fee) || 0;
-      if (body.price !== undefined && Number(body.price) > 0) sell.sellPrice = Number(body.price);
+      if (body.price !== undefined && Number(body.price) > 0) sell.sellPrice = roundPrice(body.price);
       if (body.quantity !== undefined && Number(body.quantity) > 0) sell.sellQuantity = Number(body.quantity);
       if (body.date !== undefined && body.date) sell.sellDate = String(body.date).slice(0, 10);
     }

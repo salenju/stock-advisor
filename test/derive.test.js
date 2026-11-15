@@ -271,6 +271,18 @@ test('全部卖出后：清仓标记置 true，并移出行情轮询队列', () 
   assert.equal(quoteTargets([h3]).length, 1);
 });
 
+test('买入 / 卖出价格保留 3 位小数', () => {
+  // 买入：超出 3 位的部分四舍五入
+  assert.equal(normalizePurchase({ buyPrice: 9.50549, buyQuantity: 100 }).buyPrice, 9.505);
+  assert.equal(normalizePurchase({ buyPrice: 1.23456, buyQuantity: 100 }).buyPrice, 1.235);
+
+  const h = H({ purchases: [BUY(9.5, 100, '2026-01-01', 0, 'p1')] });
+  applyTransaction(h, { type: 'BUY', price: 8.88888, quantity: 100, date: '2026-01-05' });
+  applyTransaction(h, { type: 'SELL', price: 12.34567, quantity: 50, date: '2026-02-01' });
+  assert.equal(h.purchases[1].buyPrice, 8.889);
+  assert.equal(h.sells[0].sellPrice, 12.346);
+});
+
 test('迁移：旧扁平结构 → purchases，并补齐新字段', () => {
   const legacy = {
     id: 'old1',

@@ -66,8 +66,8 @@ async function submitBuy() {
   >
       <div class="space-y-3">
         <label class="block text-sm">
-          <span class="mb-1 block text-muted">买入价</span>
-          <input v-model="buyPrice" type="number" step="0.01" class="input input-bordered w-full" />
+          <span class="mb-1 block text-muted">买入价（保留 3 位小数）</span>
+          <input v-model="buyPrice" type="number" step="0.001" class="input input-bordered w-full" placeholder="如 9.505" />
         </label>
         <label class="block text-sm">
           <span class="mb-1 block text-muted">买入数量</span>

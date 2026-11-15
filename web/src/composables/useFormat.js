@@ -11,10 +11,11 @@ export function fmtMoney(v) {
     : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// 价格统一保留 3 位小数（与 derive.js 的 PRICE_DECIMALS 一致：买入/卖出价精度）
 export function fmtPrice(v) {
   return v == null || Number.isNaN(v)
     ? '—'
-    : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    : Number(v).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 
 export function fmtQty(v) {

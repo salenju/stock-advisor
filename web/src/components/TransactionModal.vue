@@ -113,8 +113,8 @@ async function submitTxn() {
       <div class="space-y-3">
         <template v-if="needPriceQty">
           <label class="block text-sm">
-            <span class="mb-1 block text-muted">{{ type === 'BUY' ? '买入' : '卖出' }}价格</span>
-            <input v-model="price" type="number" step="0.01" class="input input-bordered w-full" />
+            <span class="mb-1 block text-muted">{{ type === 'BUY' ? '买入' : '卖出' }}价格（保留 3 位小数）</span>
+            <input v-model="price" type="number" step="0.001" class="input input-bordered w-full" placeholder="如 9.505" />
           </label>
           <div class="block text-sm">
             <span class="mb-1 flex items-center justify-between gap-2 text-muted">

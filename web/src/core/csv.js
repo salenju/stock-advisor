@@ -1,7 +1,7 @@
 // CSV 导出（交易明细 / 归因统计 / 每日快照）。
 //
 // 交易明细 / 归因统计 / 每日快照的 CSV 文本都在这里生成，下载由页面触发。
-import { withDerived, dateKey } from './derive.js';
+import { withDerived, dateKey, roundPrice } from './derive.js';
 import { buildStats } from './stats.js';
 
 export function csvCell(v) {
@@ -21,10 +21,10 @@ export function buildTradesCsv(holdings) {
   for (const h of holdings) {
     const d = withDerived(h);
     for (const p of d.purchases) {
-      rows.push([h.code, h.name, h.region, h.type, '买入', dateKey(p.buyTime), p.buyPrice, p.buyQuantity, p.fee || 0, '', '', '']);
+      rows.push([h.code, h.name, h.region, h.type, '买入', dateKey(p.buyTime), roundPrice(p.buyPrice), p.buyQuantity, p.fee || 0, '', '', '']);
     }
     for (const s of d.sells) {
-      rows.push([h.code, h.name, h.region, h.type, '卖出', s.buyTime, s.buyPrice, s.buyQuantity, s.fee || 0, s.cost, s.profit, s.returnRate]);
+      rows.push([h.code, h.name, h.region, h.type, '卖出', s.buyTime, roundPrice(s.buyPrice), s.buyQuantity, s.fee || 0, s.cost, s.profit, s.returnRate]);
     }
     for (const v of d.dividends) {
       rows.push([h.code, h.name, h.region, h.type, '分红', v.buyTime, '', '', v.fee || 0, '', v.profit, '']);

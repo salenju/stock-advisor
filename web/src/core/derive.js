@@ -78,9 +78,18 @@ export function quoteTargets(list) {
 
 // ---------- 记录归一化 ----------
 
+// 价格精度：买入价 / 卖出价统一保留 3 位小数（页面录入与 CSV 导入同一口径）
+export const PRICE_DECIMALS = 3;
+
+/** 价格归一化到 3 位小数（非法值按 0 处理） */
+export function roundPrice(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? +n.toFixed(PRICE_DECIMALS) : 0;
+}
+
 // 买入记录归一化。fee = 该笔手续费（本地币种），计入成本。
 export function normalizePurchase(b, id) {
-  const buyPrice = num(b.buyPrice);
+  const buyPrice = roundPrice(b.buyPrice);
   const buyQuantity = num(b.buyQuantity);
   if (!(buyPrice > 0) || !(buyQuantity > 0)) {
     throw new Error('买入价/买入数量必须为正');
@@ -652,7 +661,7 @@ export function applyTransaction(h, txn) {
 
   if (type === 'BUY') {
     const qty = num(txn.quantity);
-    const price = num(txn.price);
+    const price = roundPrice(txn.price);
     if (!(qty > 0) || !(price > 0)) throw new Error('quantity / price 必须为正');
     h.purchases = h.purchases || [];
     h.purchases.push(
@@ -668,7 +677,7 @@ export function applyTransaction(h, txn) {
     h.status = '持有';
   } else if (type === 'SELL') {
     const qty = num(txn.quantity);
-    const price = num(txn.price);
+    const price = roundPrice(txn.price);
     if (!(qty > 0) || !(price > 0)) throw new Error('quantity / price 必须为正');
     // 先按当前账本校验数量，再落记录（避免写入非法记录）
     const posBefore = computePositions(h);
