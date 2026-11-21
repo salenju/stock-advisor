@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { REFRESH_MS, REGION_LABEL } from './constants/options.js';
+import { isFullyClosed } from './core/derive.js';
 import { useTheme } from './composables/useTheme.js';
 import { usePwa } from './composables/usePwa.js';
 import { useHoldings } from './composables/useHoldings.js';
@@ -224,10 +225,12 @@ const REGION_SHORT = { 港股: 'hk', 美股: 'us', 沪: 'sh', 深: 'sz', A股: '
 function normRegion(r) {
   return REGION_SHORT[r] || r;
 }
+// 展示用持仓：已清仓标的不在「持仓总览」列表 / 资产配置图中出现。
+// 注意：上方 total* 汇总仍基于全部 holdings，清仓标的的已实现收益照常计入整体盈亏。
 const filteredHoldings = computed(() => {
   const { type: ft, region: fr } = activeFilters.value;
-  if (!ft.length && !fr.length) return holdings.value;
   return holdings.value.filter((h) => {
+    if (isFullyClosed(h)) return false;
     if (ft.length && !ft.includes(h.type)) return false;
     if (fr.length && !fr.includes(normRegion(h.region))) return false;
     return true;

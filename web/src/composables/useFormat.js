@@ -70,10 +70,11 @@ export function regionBadge(region) {
 }
 
 export function strategyBadge(s) {
-  return (
-    INVEST_STRATEGIES.find((x) => x.value === s) || {
-      text: REGION_LABEL[s] || s || '未设置',
-      cls: 'badge badge-info',
-    }
-  );
+  // 兼容历史数据里直接存中文标签的情况（label 反查），统一返回 { text, cls }
+  const hit =
+    INVEST_STRATEGIES.find((x) => x.value === s) ||
+    INVEST_STRATEGIES.find((x) => x.label === s);
+  return hit
+    ? { text: hit.label, cls: hit.cls }
+    : { text: REGION_LABEL[s] || s || '未设置', cls: 'badge badge-info' };
 }
